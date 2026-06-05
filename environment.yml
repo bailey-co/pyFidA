@@ -1,0 +1,8 @@
+# environment.yml
+name: myenv
+channels:
+  - conda-forge
+dependencies:
+  - python
+  - spec2nii
+  
