@@ -12,9 +12,6 @@ from scipy.fft import fft,fftshift,ifft
 from scipy.optimize import curve_fit
 GAMMAP=42.577
 
-def tmp_file:
-    print('A test for git')
-    
 def add_phase(invec,added_phase):
     """
     Add equal amounts of complex phase to each point of a vector (note this 
