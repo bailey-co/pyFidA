@@ -1,6 +1,5 @@
-numpy==1.21.4
-scipy==1.7.2
-matplotlib==3.4.3
-pandas==1.3.3
-
-# spec2nii contains all of these but somehow will not load for binder
+spec2nii>=0.8.7
+numpy>=2.4.2
+scipy>=1.17.1
+matplotlib>=3.10.8
+pandas>=3.0.1
