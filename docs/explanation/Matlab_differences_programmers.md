@@ -128,7 +128,7 @@ A final note: when creating an instance of the FID object, the dimensional infor
 
 ### 1.7 The flags attribute and error/warning checks for processing functions
 
-As with dims, the flags attribute in pyFidA is basically a dict, although I have added functionality to use dot notation. So you can call either mydata.flags['averaged'] or mydata.flags.averaged. My code uses the dictionary notation and the dot notation functionality was only added in after-the-fact for other users more used to the Matlab fid-A notation.
+As with dims, the flags attribute in pyFidA is basically a dict, although I have added functionality to use dot notation. So you can call either mydata.flags['averaged'] or mydata.flags.averaged. My code uses the dictionary notation and the dot notation functionality was only added after-the-fact for other users more used to the Matlab fid-A notation.
 
 I have updated the flags in the processing functions in the same way as is done in Matlab, so that this information should remain updated in case others require this information. However, it appears that the flags are largely redundant with the dimensional information in many cases. eg. you can use mydata.flags['addedrcvrs'] to check if coil combination is complete before aligning averages. However, it is just as easy to check "if 'coils' not in mydata" because the lack of a coil dimension indicates that coils have already been combined (or that information wasn't present to start with) and it's okay to proceed with aligning averages.
 
@@ -159,7 +159,7 @@ fid1 - fid2 is the equivalent of op_addscans(fid1, fid2, 1) where the "1" argume
 
 1.8.3 fid1 + 3.5
 
-The assume intention here is that the scalar value is to be added as a DC offset in the spectral domain. That is, the above statement would be equivalent to op_dccorr(fid1,'v',-3.5) or, put another, it creates a fid object with a spectrum equal to fid1.specs+3.5. Likewise, fid1 - 3.5 would subtract 3.5 from every point in the frequency spectrum.
+The assumed intention here is that the scalar value is to be added as a DC offset in the spectral domain. That is, the above statement would be equivalent to op_dccorr(fid1,'v',-3.5). Put another way, it creates a fid object with a spectrum equal to fid1.specs+3.5. Likewise, fid1 - 3.5 would subtract 3.5 from every point in the frequency spectrum.
 
 1.8.4 2*fid1
 
@@ -181,7 +181,7 @@ In Python, you can define a slicing operation using the \_\_getitem\_\_ dunder m
 
 However, in the case where a slice is a single int, the default numpy slicing behaviour is to reduce the array size. So if array1.shape returns [2048,6] and array2=array1[:,0], then array2.shape returns [2048,]. Note that this is not the case for a slice that includes :, even if that slice only has size 1. That is, if array2=array1[:,:1] then array2.shape will return [2048,1]. This behaviour from numpy has been kept in the \_\_getitem\_\_ function of the FID object . As a result, in the case of an int, myfid[:,5] will remove that dimension from myfid so that myfid.dims will just return {'t':0}. This is done automatically, and accounts for cases with multiple ints, eg. fid2[:,0,2] will return an object where fid2.ndim is 1 and fid2.dims is {'t':0}. This allows for consistency for users familiar with numpy slicing and it also seems to make the most sense since the point of picking out 1 slice is often to operate on it as its own object, without singleton dimensions (eg. for plotting).
 
-In some cases, slicing might be more convenient that functions like op_takaverages, op_takesubspec, etc., although the \_\_getitem\_\_ call requires you to know which dimension corresponds to the averages or subspecs in order to slice it. Functions like op_takeaverages are also designed to remove dimensions when a particular dimension is an integer instead of a range. This \_\_getitem\_\_ slicing is also useful when, for example, you want to iterate through each average to analyze frequency drift, or if you want to group subsets of averages together for a windowed average over time.
+In some cases, slicing might be more convenient than functions like op_takaverages, op_takesubspec, etc., although the \_\_getitem\_\_ call requires you to know which dimension corresponds to the averages or subspecs in order to slice it. Functions like op_takeaverages are also designed to remove dimensions when a particular dimension is an integer instead of a range. This \_\_getitem\_\_ slicing is also useful when, for example, you want to iterate through each average to analyze frequency drift, or if you want to group subsets of averages together for a windowed average over time.
 ```python
 # iterate through some averages to do something
 for specct in range(myfid.averages):
@@ -202,7 +202,7 @@ for avg_ct in range(myfid.sz[1]-10):
 
 Note that flags are *not* adjusted in the current slicing behaviour so, even if you eliminate the averages dimension by selecting the first average of 250, myfid.flags['averaged'] will still return False.
 
-Similarly, a \_\_setitem\_\_ dunder method is defined for uses like myfid[:,5:8]=myarray, which would be equivalent to myfid.fids[:,5:8]=myarray. This, of course, requires that myarray is the correct size to fit in this slice of myfid, or else an error would be thrown. and this would set that part of myfid.fids, provided that myarray is the correct size. The FID slice can be set using either a numpy array or another FID object. eg. if you want to want to phase just one subspec (and subsecs were the second dimension), you could run myfid[:,1]=pyFidA.op_addphase(myfid[:,1]). The op_addphase function returns a FID object, but \_\_setitem\_\_ will take the fids attribute from that returned object and assign it to myfid.fids[:,1].
+Similarly, a \_\_setitem\_\_ dunder method is defined for uses like myfid[:,5:8]=myarray, which would be equivalent to myfid.fids[:,5:8]=myarray. This, of course, requires that myarray is the correct size to fit in this slice of myfid, or else an error will be thrown. The FID slice can be set using either a numpy array or another FID object. eg. if you want to want to phase just one subspec (and subsecs were the second dimension), you could run myfid[:,1]=pyFidA.op_addphase(myfid[:,1]). The op_addphase function returns a FID object, but \_\_setitem\_\_ will take the fids attribute from that returned object and assign it to myfid.fids[:,1].
 
 # The RF_pulse object
 I covered most of the stuff about interactive plotting and the time-w1 estimation in Matlab_differences_basic.md. Not sure if there's anything that needs to be added here.
