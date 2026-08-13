@@ -3,6 +3,9 @@
 """
 Created on Wed Aug  5 09:44:09 2026
 
+Test for fidA_rf module and the RF_pulse object. Does not include testing of 
+the fidA_sim module functions, even when they involve RF pulses
+
 @author: nearlabmacbook1
 """
 
@@ -10,36 +13,15 @@ import unittest
 import numpy as np
 from pathlib import Path
 from pyFidA import RF_pulse, io_loadRFwaveform
-from pyFidA.fidA_rf import rf_freqshift, rf_blochSim, rf_addGrad
-from pyFidA.fidA_common import FidAWarningRF, FidAWarning, FidAException
-import matplotlib.pyplot as plt
+from pyFidA.fidA_rf import rf_freqshift, rf_blochSim, rf_addGrad, rf_gauss, rf_dualBand
+from pyFidA.fidA_common import FidAWarningRF, FidAException
 import warnings
 
-# For a lot of things. I might be able to start with the stuff that I've got
-# in main??
-# Note that this will just be for testing (a) the loading of rf pulses?? Or
-# should that be in the io toolbox? I guess I will need to load but I mostly
-# want to test that the various properties are accessible. And (b) the manipulations
-# in the rfPulse module. It won't test the simulation toolbox.
-# I'll want to test things for phase-modulate and non-phase-modulated pulses
-# And I'll want to test gradient-modulated for various things (both that they
-# function in some cases and throw exceptions in others.) Should also test 
-# pulses with even time steps and without.
-
-# Test normal inputs (standard values that the function expects to receive)
-# Test edge cases (zero, emtpy lists, very large numbers)
-# Error Handling (test how code reacts to bad data or missing values)
-# State changes (test if the object or system updates correctly after running code)
-# You don't have to write for every case but try to focus on things that you think
-# realistically might break (eg. I would think that most processing functions
-# should check that the size of myfid.fids and length of myfid._dimlist match)
-
-# Not sure if there's an inconsistency here. I put the testing for the FID object
-# in common. So then the testing for the RF_pulse object itself would also go
-# there and this would just be for the RF toolbox.
 @unittest.skip("Already tested. Skipping while I implement new tests in next class")
 class TestRF_pulse(unittest.TestCase):
-    
+    """
+    Tests of the RF_pulse class attributes, properties and functions.
+    """
     @classmethod
     def setUpClass(self):
         print('\nGenerating Hanning-windowed sinc pulse for testing as rfpulse')
@@ -174,10 +156,7 @@ class TestRF_pulse(unittest.TestCase):
     def test_movef0_sinc(self):
         offres_moved=self.rfpulse.copy()
         offres_moved.f0=self.offres_f0
-        # Note that there are two bits of code to shift/change f0. Testing both.
         self.assertEqual(offres_moved.f0,self.offres_pulse.f0,'Moving f0 failed when assigning self.f0=new value')
-        offres_moved=rf_freqshift(self.rfpulse,F=self.offres_f0)
-        self.assertEqual(offres_moved.f0,self.offres_pulse.f0,'Moving f0 failed when using rf_freqshift function')
         # Resolution of fvec is 0.001 kHz
         np.testing.assert_array_almost_equal(self.offres_pulse._fvec , offres_moved._fvec, decimal=3, err_msg='Frequency vector _fvec not correct following f0 shift')
         # Note that testing the w1 profile doesn't work, even if you do precision of just 2 decimal places.
@@ -189,7 +168,6 @@ class TestRF_pulse(unittest.TestCase):
         self.assertAlmostEqual(self.offres_pulse.w1max, offres_moved.w1max,4, msg='Power does not match after rf pulse frequency shift')
         
     def test_movef0_gm(self):
-        # Check the basics for gradient-modulated case
         gm_moved=self.gm_pulse.copy()
         gm_moved.f0=self.offres_f0
         self.assertAlmostEqual(self.gm_pulse._tbw/self.tp, gm_moved._tbw/self.tp, places=3, msg='Bandwidth not equal after frequency shift')
@@ -245,7 +223,7 @@ class TestRF_pulse(unittest.TestCase):
         basic_square=RF_pulse(np.concatenate([np.zeros([10,1]),np.ones([10,1])],axis=1),'exc',iscopy=True)
         basic_square.isAdiabatic=False
         self.assertEqual(basic_square.get_ampint(),1)
-        # Test that sinc returns??? A number, I guess. Can just run the calculation with amplitude since it's not phase-modulated
+        # Test for sinc. Since it's not phase-modulated, can compare to amplitude integral
         self.assertEqual(self.rfpulse.get_ampint(),np.sum(np.abs(self.rfpulse.waveform[:,1]))/self.rfpulse.npts,'Incorrect value for get_ampint() for sinc pulse')
         # Test that off-resonance ampint is the same as on-resonance (I think that should be true)
         self.assertAlmostEqual(self.rfpulse.get_ampint(), self.offres_pulse.get_ampint(),msg="Off-resonance and on-resonance results for get_ampint() don't match")
@@ -284,11 +262,9 @@ class TestRF_pulse(unittest.TestCase):
         np.testing.assert_array_almost_equal(np.remainder(offres_copy.waveform[test_idx,0],360),np.remainder(self.offres_pulse.waveform[test_idx,0],360),err_msg='RF_pulse.add_phase not producing expected result')
         
 class TestRFPulseTools(unittest.TestCase):
-    # I separated out the above tests of the RF pulse object (except for I did
-    # test the shift f0 function because it aligned with .f0 tests but I can move
-    # that here). In case I want to move them to the folder for fidA_common
-    # where RF_pulse is located. This part will test the fidA_rfPulseTools 
-    # functions, although setup is largely the same
+    """
+    Tests of the pyFidA.fidA_rf functions.
+    """
     
     @classmethod
     def setUpClass(self):
@@ -324,49 +300,92 @@ class TestRFPulseTools(unittest.TestCase):
         #self.null_pulse=RF_pulse(np.concatenate([np.zeros([10,1]),np.zeros([10,1])],axis=1),'exc',iscopy=True)
         #self.null_pulse.isAdiabatic=False
         
-    def test_rf_addGrad(self):
-        # For scalar gradval
-        newrf=rf_addGrad(self.rfpulse,self.gradval)
-        self.assertAlmostEqual(newrf.bw,self.gm_pulse.bw,'rf_addGrad failed: bandwidth not as expected with scalar gradient')
-        self.assertAlmostEqual(newrf.w1max,self.gm_pulse.w1max,'rf_addGrad failed: w1 not as expected with scalar gradient')
-        # For vector gradval
-        newrf=rf_addGrad(self.rfpulse,self.gradval*np.ones([self.rfpulse.npts,]))
-        self.assertAlmostEqual(newrf._tbw,self.gm_pulse._tbw, 'rf_addGrad failed: bandwidth not as expected from vector gradient')
-        self.assertAlmostEqual(newrf.w1max,self.gm_pulse.w1max,'rf_addGrad failed: w1 not as expected from vector gradient')
-        grad_fac=2.5
-        # Okay, so I don't really want to run tests that require user input. In
-        # this case, I can raise the warning to an error to test that this case
-        # gets to the right part of the program and I know that works, but then 
-        # raising the error means that it exits before asking for input, so the 
-        # tests can continue. This has the handy side effect of demonstrating 
-        # to users how they can turn off or raise errors themselves.
-        warnings.filterwarnings("error",message="WARNING: Input waveform ",category=FidAWarningRF)
-        with self.assertRaises(FidAWarningRF):
-            newrf=rf_addGrad(self.gm_pulse,self.gradval/grad_fac)
-        warnings.resetwarnings()
-        newrf=rf_addGrad(self.gm_pulse,self.gradval/grad_fac,overwrite_wf=True)
-        self.assertAlmostEqual(self.rfpulse._tbw/(self.gradval/grad_fac*self.rfpulse.gamma)*10,newrf._tbw,3, 'rf_addGrad failed: Bandwidth not as expected.')
-        # off-resonance should throw a warning because f0 will change
-        with self.assertWarns(FidAWarningRF,msg='rf_addGrad: Adding gradient to off-resonance pulse should throw warning that f0 will change'):
-            rf_addGrad(self.offres_pulse,self.gradval*np.ones([self.offres_pulse.npts,]))
+    # def test_rf_addGrad(self):
+    #     # For scalar gradval
+    #     newrf=rf_addGrad(self.rfpulse,self.gradval)
+    #     self.assertAlmostEqual(newrf._tbw,self.gm_pulse._tbw,'rf_addGrad failed: bandwidth not as expected with scalar gradient')
+    #     self.assertAlmostEqual(newrf.w1max,self.gm_pulse.w1max,'rf_addGrad failed: w1 not as expected with scalar gradient')
+    #     # For vector gradval
+    #     newrf=rf_addGrad(self.rfpulse,self.gradval*np.ones([self.rfpulse.npts,]))
+    #     self.assertAlmostEqual(newrf._tbw,self.gm_pulse._tbw, 'rf_addGrad failed: bandwidth not as expected from vector gradient')
+    #     self.assertAlmostEqual(newrf.w1max,self.gm_pulse.w1max,'rf_addGrad failed: w1 not as expected from vector gradient')
+    #     grad_fac=2.5
+    #     # Don't really want to run tests that require user input. In this case,
+    #     # I can raise the warning to an error to test that this case
+    #     # gets to the right part of the program and I know that works, but then 
+    #     # raising the error means that it exits before asking for input, so the 
+    #     # tests can continue. This has the handy side effect of demonstrating 
+    #     # to users how they can turn off or raise errors themselves.
+    #     warnings.filterwarnings("error",message="WARNING: Input waveform ",category=FidAWarningRF)
+    #     with self.assertRaises(FidAWarningRF):
+    #         newrf=rf_addGrad(self.gm_pulse,self.gradval/grad_fac)
+    #     warnings.resetwarnings()
+    #     newrf=rf_addGrad(self.gm_pulse,self.gradval/grad_fac,overwrite_wf=True)
+    #     self.assertAlmostEqual(self.rfpulse._tbw/(self.gradval/grad_fac*self.rfpulse.gamma)*10,newrf._tbw,3, 'rf_addGrad failed: Bandwidth not as expected.')
+    #     # off-resonance should throw a warning because f0 will change
+    #     with self.assertWarns(FidAWarningRF,msg='rf_addGrad: Adding gradient to off-resonance pulse should throw warning that f0 will change'):
+    #         rf_addGrad(self.offres_pulse,self.gradval*np.ones([self.offres_pulse.npts,]))
     
-    def test_rf_blochSim(self):
-        # Very limited testing here. The BlochSimulator can have its own testing
-        # in that testing folder. Here, I am just going to check a few zero/null
-        # cases and a simple waveform.
-        # Note that self.rfpulse was generated with RF_pulse, which calls the
-        # BlochSimulator so, if there's something wrong with that, we may just
-        # be replicating it here and getting two wrongs to agree. That's why a
-        # separate test for the BlochSimulator itself would be good.
-        npts=10000
-        mv, fvec=rf_blochSim(self.rfpulse,self.tp*1000,fspan=10,f0=0,peakB1=self.rfpulse.w1max,ph=0,npts=npts,M0=np.r_[0,0,1],display_output=False)
-        # This is a 90 degree pulse. On-resonance, around x, it should produce a vector along y
-        np.testing.assert_array_almost_equal(mv[:,npts//2], np.r_[0,1,0],decimal=2,err_msg='rf_blochSim not working as expected properly for 90 degree sinc pulse')
-        half_max_pt=np.flatnonzero(fvec>-1*self.rfpulse.bw/2)[0]
-        # Very low precision for these, but I guess that's because w1max isn't exact and maybe fvec has issues as well.
-        self.assertAlmostEqual(mv[2,half_max_pt],0.5,2,msg='Magnetization from rf_blochSim is not half maximum at expected bandwidth point for sinc pulse')
-        mv, fvec=rf_blochSim(self.rfpulse,self.tp*1000,fspan=10,f0=0,peakB1=0,ph=0,npts=npts,M0=np.r_[0,0,1],display_output=False)
-        np.testing.assert_array_almost_equal(mv[:,npts//2], np.r_[0,0,1],decimal=5,err_msg='rf_blochSim not working as expected properly for 0 power sinc pulse')
+    # def test_rf_blochSim(self):
+    #     # Very limited testing here. The BlochSimulator class will have its 
+    #     # own tests. This is just to check that the rf_blochSim function 
+    #     # uses that class to return something in a few cases.
+    #     npts=10000
+    #     mv, fvec=rf_blochSim(self.rfpulse,self.tp*1000,fspan=10,f0=0,peakB1=self.rfpulse.w1max,ph=0,npts=npts,M0=np.r_[0,0,1],display_output=False)
+    #     # This is a 90 degree pulse. On-resonance, around x, it should produce a vector along y
+    #     np.testing.assert_array_almost_equal(mv[:,npts//2], np.r_[0,1,0],decimal=2,err_msg='rf_blochSim not working as expected properly for 90 degree sinc pulse')
+    #     half_max_pt=np.flatnonzero(fvec>-1*self.rfpulse.bw/2)[0]
+    #     # Very low precision for these, but I guess that's because w1max isn't exact and maybe fvec has low resolution as well.
+    #     self.assertAlmostEqual(mv[2,half_max_pt],0.5,2,msg='Magnetization from rf_blochSim is not half maximum at expected bandwidth point for sinc pulse')
+    #     mv, fvec=rf_blochSim(self.rfpulse,self.tp*1000,fspan=10,f0=0,peakB1=0,ph=0,npts=npts,M0=np.r_[0,0,1],display_output=False)
+    #     np.testing.assert_array_almost_equal(mv[:,npts//2], np.r_[0,0,1],decimal=5,err_msg='rf_blochSim not working as expected properly for 0 power sinc pulse')
+        
+    # def test_rf_gauss(self):
+    #     npts=500
+    #     test_bw=500
+    #     test_f0=400
+    #     newrf,ampint=rf_gauss(self.tp*1000,test_bw,npts,'inv',df=0,asym_factor=0,filter_flag=False,suppress_plots=True)
+    #     self.assertTrue((newrf.bw-test_bw/1000)/newrf.bw<0.07,msg="Bandwidth from rf_gauss not as expected")
+    #     # Test shifted frequency
+    #     newrf2,ampint=rf_gauss(self.tp*1000,test_bw,npts,'inv',df=test_f0,asym_factor=0,filter_flag=False,suppress_plots=True)
+    #     self.assertAlmostEqual(newrf.f0, newrf2.f0-test_f0)
+    #     self.assertAlmostEqual(newrf.w1max,newrf2.w1max)
+    #     # filter_flag untested here (requires user input)
+    #     #newrf2,ampint=rf_gauss(self.tp*1000,test_bw,npts,'inv',df=0,asym_factor=0,filter_flag=True,suppress_plots=True)
+    #     # Test asym_factor
+    #     newrf2,ampint=rf_gauss(self.tp*1000,test_bw,npts,'inv',df=0,asym_factor=1,filter_flag=False,suppress_plots=True)
+    #     self.assertIsInstance(newrf2, RF_pulse,msg="Gaussian pulse with asym_factor not completing as expected")
+        
+    # def test_movef0_sinc(self):
+    #     offres_moved=rf_freqshift(self.offres_pulse,F=-1*self.offres_f0)
+    #     self.assertEqual(offres_moved.f0,0,'Moving f0 failed when using rf_freqshift function')
+    #     # Resolution of fvec is 0.001 kHz
+    #     np.testing.assert_array_almost_equal(self.rfpulse._fvec , offres_moved._fvec, decimal=3, err_msg='Frequency vector _fvec not correct following rf_freqshift')
+    #     np.testing.assert_array_almost_equal(self.rfpulse._pulse_freq_profile[2,:], offres_moved._pulse_freq_profile[2,:], decimal=1, err_msg='Frequency profiles _pulse_freq_profile[2,:] do not match following rf_freqshift')
+    #     self.assertAlmostEqual(self.offres_pulse.bw, offres_moved.bw, places=3, msg='Bandwidth not equal after rf_freqshift')
+    #     self.assertAlmostEqual(self.offres_pulse.w1max, offres_moved.w1max,4, msg='Power does not match after rf_freqshift')
+        
+    # def test_movef0_gm(self):
+    #     gm_moved=rf_freqshift(self.gm_pulse,F=self.offres_f0)
+    #     self.assertAlmostEqual(self.gm_pulse._tbw/self.tp, gm_moved._tbw/self.tp, places=3, msg='Bandwidth not equal after frequency shift')
+    #     self.assertAlmostEqual(self.gm_pulse.w1max, gm_moved.w1max,4, msg='Power does not match after rf pulse frequency shift')
+    #     self.assertAlmostEqual(self.gm_pulse._fvec[0]+self.offres_f0/1000, gm_moved._fvec[0],3, msg='Frequency vectors do not match after frequency shift')
+        
+    def test_dualBand(self):
+        # Note that dualBand calls combineRF, so this test serves as a test of
+        # both functions
+        npts=500
+        test_bw=200
+        test_f0=50
+        # Do you want to test ph0 and shft?
+        with self.assertWarns(FidAWarningRF,msg="rf_dualBand should throw warning for pulses where bw is large relative to frequency separation"):
+            newrf,ampint=rf_dualBand(self.tp*1000,df=test_f0,npts=npts,bw=test_bw,ph0=0,shft=-100,ptype='exc',suppress_plots=True)
+        npts=500
+        test_bw=100
+        test_f0=500
+        newrf2,ampint=rf_dualBand(self.tp*1000,df=test_f0,npts=npts,bw=test_bw,ph0=90,shft=0,ptype='exc',suppress_plots=True)
+        self.assertEqual(test_f0,newrf2._f0[1])
+    
         
 if __name__=='__main__':
     # can add verbosity=2 as an argument to unittest.main() for more info

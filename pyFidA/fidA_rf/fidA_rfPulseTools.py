@@ -177,14 +177,41 @@ def rf_blochSim(RF,tp,fspan=10,f0=0,peakB1=None,ph=0,npts=10000,M0=np.r_[0,0,1],
         f1.tight_layout()
     return mv, fvec
 
-def rf_combineRF(rf1,rf2):
-    # As with rf_dualBand, the central frequencies of the two peaks and the 
-    # apparent bandwidth may not match what is expected if the difference between
-    # frequencies is small relative to the bandwidths (ie. the peaks overlap).
-    # In these cases, you may not be exciting the frequencies you expect. And
-    # also you need to find the approximate f0 value at which to calculate w1max.
+def rf_combineRF(rf1,rf2,suppress_plots=False):
+    """
+    Combines two rf waveforms (intended for pulses with the same pulse shape
+    but one frequency-shifted). Note that cases where the frequency difference
+    between the pulses is small relative to the bandwidth will throw a warning
+    but the w1max and bandwidth are re-calculated for the new pulse (differs
+    from Matlab where tw1 and tbw are summed, which is not accurate in the 
+    case of small frequency differences/large bandwidths)
+
+    Parameters
+    ----------
+    rf1 : pyFidA.RF_pulse
+        First rf pulse.
+    rf2 : pyFidA.RF_pulse
+        Second rf pulse.
+    suppress_plots : boolean, optional
+        Whether to suppress the plots of w1 vs Mz and frequency vs Mz that are
+        generated for the pulse from Bloch simulations. The default is False.
+
+    Raises
+    ------
+    FidAException
+        Raise in the case that either rf pulse is gradient-modulated OR in the
+        case that the time steps of the functions don't match.
+
+    Returns
+    -------
+    rf_out : pyFidA.RF_pulse
+        Output rf waveform of the combined rf pulse.
+    AMPINT : float
+        Calculated amplitude integral (for use in Siemens .pta files).
+
+    """
     if np.abs(rf1.f0-rf2.f0)<1.3*1000*(rf1.bw/2+rf2.bw/2):
-        print('WARNING: Entered frequency difference is small relative to bandwidth. Peaks will overlap and frequency bands may not look as expected.')
+        warnings.warn('WARNING: Entered frequency difference is small relative to bandwidth. Peaks will overlap and frequency bands may not look as expected.',FidAWarningRF)
     if rf1.isGM or rf2.isGM:
         raise FidAException('ERROR: rf_combineRF not implemented for gradient-modulated waveforms')
     if any(rf1.waveform[:,2]!=rf2.waveform[:,2]):
@@ -197,89 +224,163 @@ def rf_combineRF(rf1,rf2):
     newrfwf=rf1.waveform
     newrfwf[:,0]=phase(combined_waveform_scaled)*180/np.pi
     newrfwf[:,1]=np.abs(combined_waveform_scaled)
-    # Changing from how it's done in Matlab, where tw1 and tbw are calculated
-    # by adding the values for the individual waveforms. It's debatable how to
-    # calculate the bandwidth (since it's not well-defined if there are multiple
-    # peaks) but certainly the power calculated in this way doesn't give you the
-    # correct flip angle for the combined pulse unless the two peaks are very
-    # distinct (oftend end up far short of an inversion). 
-    # Better to just re-calculate for the new pulse, I think, although you need 
-    # to choose the frequency to try to find w1max and, after multiple ways of
-    # trying to estimate this, the most reliable way seems to be the interative
-    # estimate.
+    # For cases with overlapping bands, need to estimate f0 because the maximum
+    # flip angle may no longer be at the expected points.
     if np.abs(rf1.f0-rf2.f0)<1.3*1000*(rf1.bw/2+rf2.bw/2):
-        rf_out=RF_pulse(newrfwf, rf1.pulse_type,rf1._Tp,f0=None,gamma=rf1.gamma)
+        rf_out=RF_pulse(newrfwf, rf1.pulse_type,rf1._Tp,f0=None,gamma=rf1.gamma,suppress_plots=suppress_plots)
     else:
-        rf_out=RF_pulse(newrfwf, rf1.pulse_type,rf1._Tp,rf1.f0,gamma=rf1.gamma)
+        rf_out=RF_pulse(newrfwf, rf1.pulse_type,rf1._Tp,rf1.f0,gamma=rf1.gamma,suppress_plots=suppress_plots)
     AMPINT=rf_out.get_ampint()
-    ## Previous Matlab stuff
-    #rf_out=rf1.copy()
-    #rf_out._waveform=newrfwf
-    #rf_out._tw1=rf1._tw1+rf2._tw1
-    #rf_out._tbw=rf1._tbw+rf2._tbw #Would you say that the bandwidth is the addition of the previous bandwidths?
-    #tw1,rf_out._f1vec,rf_out._w1_profile=_calc_tw1max(rf_out.pulse_type,newrfwf,rf_out._Tp,rf_out.f0,rf_out._gamma)
-    #tbw,rf_out._fvec,rf_out._pulse_freq_profile,rf_out._on_res_Mz=_calc_tbw(rf_out.pulse_type,newrfwf,rf_out._Tp,f0=rf1.f0,w1max=rf_out._tw1/rf_out._Tp,gamma=rf_out._gamma)
-    #AMPINT=rf_out.get_ampint()
     
     # Tough to know how to define _f0 because there are two minima. Taking the
     # average doesn't put you at an Mz minimum and will fail to find the correct
-    # w1max if that calculation is run. Probably the most sensible to have a 
-    # vector of f0 values but then I need to go back and redesign the RF_pulse 
-    # class and any functions that get a frequency to deal with that.
+    # w1max if that calculation is run. Currently storing as a vector but
+    # rf_out.f0 will return just the first value in this vector.
     rf_out._f0=np.r_[rf_out._f0,rf2._f0]
     return rf_out,AMPINT
 
-def rf_dualBand(tp,df,npts,bw,ph0,shft,ptype='inv',asym_factor=None,filter_flag=False,gamma=GAMMA_DICT['1H']):
-    # Both df and shft seem to give you negative shifts. Not sure if this is 
-    # what is intended. It matches the Matlab code and may have to do with the
-    # use of ppm to frequency conversions???.
-    # There's overlap here with both rf_gauss and rf_combineRF so I've replaced
-    # that code with those functions where appropriate. There are some changes.
-    # (1) Matlab defines a t vector centered around 0 but this then means that
-    # the bandwidth you enter isn't correctly converted to c for the Gaussian.
-    # I've used a t vector starting at 0 instead.
-    # (2) There are also more options in rf_gauss (asym_factor, filter_flag) so I
-    # have added those as inputs here but set them to default to not being used.
-    # (3) rf_combineRF already runs the check that the bandwidth is small relative
+def rf_dualBand(tp,df,npts,bw,ph0,shft,ptype='inv',asym_factor=0,filter_flag=False,gamma=GAMMA_DICT['1H'],suppress_plots=False):
+    """
+    Creates a dual-banded Gaussian inversion RF pulse. The plots generated for
+    dual band pulses are a work-in-progress.
+
+    Parameters
+    ----------
+    tp : float
+        Duration of the pulse in ms.
+    df : float
+        Frequency difference between the first and second pulses in Hz. Note 
+        that this shifts in the opposite direction compared to Matlab's 
+        rf_dualBand.
+    npts : int
+        Number of points in the rf waveform.
+    bw : float
+        FWHM of the Gaussian profiles in Hz. Note that this differs from the
+        number input in the equivalent Matlab function, which is off by a
+        factor of sqrt(pi) from the FWHM.
+    ph0 : float
+        Phase of the second Gaussian.
+    shft : float
+        Frequency shift applied to both bands, in Hz
+    ptype : float or str, optional
+        Flip angle in degrees if float. str values can be 'exc' (for 90 degree 
+        pulse) or 'inv' or 'ref' for 180 degree pulse. The default is 'inv'
+    asym_factor : float, optional
+        Asymmetry factor for the amount to shift the pulse in the time domain,
+        in ms. Note that this interacts with df and shft. The default is 0.
+    filter_flag : boolean, optional
+        Whether to apply a cosine filter to the pulse to avoid ringing 
+        artefacts. If True, the user will be asked for an attenuation factor.
+        The default is False.
+    gamma : float optional
+        Gyromagnetic ratio for the nucleus that the pulse will be applied to in
+        MHz/T. Only saved in case a gradient is later applied to the pulse and 
+        G/cm needs to be converted to dephasing. The default is 
+        GAMMA_DICT['1H'] = 42.577 MHz/T.
+    suppress_plots : boolean, optional
+        Whether to suppress the plots of w1 vs Mz and frequency vs Mz that are
+        generated for the pulse from Bloch simulations. The default is False.
+
+    Returns
+    -------
+    rf_out : pyFidA.RF_pulse
+        Output rf waveform for the dual banded rf pulse.
+    AMPINT : float
+        Calculated amplitude integral, for use in Siemens .pta files.
+
+    """
+    # rf_combineRF already runs the check that the bandwidth is small relative
     # to the frequency so I've removed that from here and let it be handled there.
-    
-    rf_gauss1,_=rf_gauss(tp,bw,npts,ptype,df=0,asym_factor=asym_factor,filter_flag=filter_flag,gamma=gamma,suppress_plots=True)
-    rf_gauss2=rf_freqshift(rf_gauss1,F=shft)
+    rf_gauss1,_=rf_gauss(tp,bw,npts,ptype,df=shft,asym_factor=asym_factor,filter_flag=filter_flag,gamma=gamma,suppress_plots=True)
+    rf_gauss2=rf_freqshift(rf_gauss1,F=shft+df)
     rf_gauss2.add_phase(ph0)
-    rf_out,_=rf_combineRF(rf_gauss1,rf_gauss2)
-    # Compute the amplitude integral, which is used by magnetom to calculate the
-    # transmitter power that is required in order to achieve the desired flip
-    # angle
+    rf_out,_=rf_combineRF(rf_gauss1,rf_gauss2,suppress_plots=suppress_plots)
     AMPINT=rf_out.get_ampint()
     return rf_out, AMPINT
 
 def rf_freqshift(rf_in,F=0,Tp=None):
-    # F in Hz, Tp entered in ms (if None, will be read from rf_in._Tp and converted to correct units)
+    """
+    Apply a frequency shift to an RF pulse
+
+    Parameters
+    ----------
+    rf_in : pyFidA.RF_pulse
+        Initial rf pulse.
+    F : float, optional
+        Amount to shift the frequency of the rf pulse, in Hz. The default is 0.
+    Tp : float, optional
+        Duration of the rf pulse, in ms. The default is None, which uses the
+        value of rf_in._Tp.
+
+    Returns
+    -------
+    rf_out : pyFidA.RF_pulse
+        Output rf pulse following the frequency shift.
+
+    """
     rf_out=rf_in.copy()
     rfwf=rf_in.waveform
     if Tp is None:
         Tp=rf_in._Tp
     else:
         Tp=Tp/1000
-    # RF_pulse objects all have a 3rd dimension for timesteps from __init__ so
-    # removing that check from code
     dt=Tp/np.sum(rfwf[:,2])
     timesteps=rfwf[:,2]
+    # Calculation accounts for non-uniform timesteps in rfwf[:,2], as well as
+    # the effects of any gradient associated with the pulse
     if rf_in.isGM:
         phaseRamp=(np.cumsum(rfwf[:,3]*timesteps)-rfwf[0,3]*timesteps[0])*(rf_in.gamma/10)*dt*F*360
     else:
-        phaseRamp=dt*(np.cumsum(timesteps)-timesteps[0])*F*360 #f0 is in Hz and Tp/tvec in seconds, so this should be okay.
+        phaseRamp=dt*(np.cumsum(timesteps)-timesteps[0])*F*360
     rf_out._waveform[:,0]=rf_out._waveform[:,0]+phaseRamp
     rf_out._f0=rf_in._f0+F # Note that you need the underscore on rf_out._f0 because if you use rf_out.f0 because this calls the setter, which does the frequency shift again
     rf_out._fvec=rf_in._fvec+F/1000
     return rf_out
     
-def rf_gauss(tp,bw,npts,ptype,df=0,asym_factor=None,filter_flag=False,gamma=GAMMA_DICT['1H'],suppress_plots=False):
-    # Again, the frequencies as written in Matlab produce the negative of what we want.
-    # Here, since only the frequency-shifted pulse is used, I did take the negative
-    # to produce the central frequency as the expected value.
-    # Because of the way that asym_factor is done, I've done the frequency shift
-    # at the end.
+def rf_gauss(tp,bw,npts,ptype,df=0,asym_factor=0,filter_flag=False,gamma=GAMMA_DICT['1H'],suppress_plots=False):
+    """
+    Create an RF_pulse object with a Gaussian waveform of length npts. The
+
+    Parameters
+    ----------
+    tp : float
+        Duration of the pulse in ms.
+    bw : float
+        FWHM of the Gaussian profile in Hz. Note that this differs from the
+        number input in the equivalent Matlab function, which is off by a
+        factor of sqrt(pi) from the FWHM.
+    npts : int
+        Number of points in the rf waveform.
+    ptype : float or str
+        Flip angle in degrees if float. str values can be 'exc' (for 90 degree 
+        pulse) or 'inv' or 'ref' for 180 degree pulse.
+    df : float, optional
+        Frequency of the Gaussian pulse in Hz. Note that this shifts in the 
+        opposite direction compared to Matlab's rf_gauss. The default is 0.
+    asym_factor : float, optional
+        Asymmetry factor for the amount to shift the pulse in the time domain,
+        in ms. Note that this interacts with df. The default is 0.
+    filter_flag : boolean, optional
+        Whether to apply a cosine filter to the pulse to avoid ringing 
+        artefacts. If True, the user will be asked for an attenuation factor.
+        The default is False.
+    gamma : float optional
+        Gyromagnetic ratio for the nucleus that the pulse will be applied to in
+        MHz/T. Only saved in case a gradient is later applied to the pulse and 
+        G/cm needs to be converted to dephasing. The default is 
+        GAMMA_DICT['1H'] = 42.577 MHz/T.
+    suppress_plots : boolean, optional
+        Whether to suppress the plots of w1 vs Mz and frequency vs Mz that are
+        generated for the pulse from Bloch simulations. The default is False.
+
+    Returns
+    -------
+    rf_out : pyFidA.RF_pulse
+        RF_pulse object for the Gaussian waveform.
+    AMPINT : float
+        Calculated amplitude integral (for use in Siemens .pta files).
+
+    """
     tps=tp/1000
     if asym_factor is None:
         asym=input('Would you like to make the pulse asymmetric (y/n)? ')
@@ -289,14 +390,8 @@ def rf_gauss(tp,bw,npts,ptype,df=0,asym_factor=None,filter_flag=False,gamma=GAMM
             asym_factor=0
     t=np.linspace(0,tps,npts)-tps/2-asym_factor*tps
     fwhmt=1/bw
-    # As done in Matlab, the bandwidth entered is not what you actually get for the
-    # FWHM in the end. I think that this is because t is shifted to run from -tps/2
-    # to tps/2. But, if you adjust to run from 0 to tps, you just get half a 
-    # Gaussian. The extra factor of np.sqrt(np.pi) that you see here and isn't
-    # in Matlab compensates so you get the expected FWHM
     c=fwhmt/2/np.sqrt(2*np.log(2))/np.sqrt(np.pi)
     gauss1=np.exp(-t**2/(2*c**2))
-    # Filter the Gaussian using a cosine filter to minimize any ringing artefacts
     if filter_flag:
         print('Cosine filtering is on. Check plot to ensure filter is not negative at the tails. (Change asymmetry factor or attenuation if so.)')
         attn=float(input('By what factor would you like to attenuate the edges of the pulse? '))
@@ -305,8 +400,6 @@ def rf_gauss(tp,bw,npts,ptype,df=0,asym_factor=None,filter_flag=False,gamma=GAMM
         plt.plot(t,fcos)
         gauss1=gauss1*fcos
     rf1=np.ones([npts,3])
-    # Not sure why I had this written differently than Matlab
-    #rf1[:,0]=180*(gauss1<0)
     gauss1=gauss1/np.max(gauss1)
     rf1[:,0]=phase(gauss1)*180/np.pi
     rf1[:,1]=np.abs(gauss1)

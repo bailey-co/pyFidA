@@ -693,24 +693,36 @@ def _calc_tbw(ptype,rf,Tp,f0,w1max,gamma=GAMMA_DICT['1H'],suppress_plots=False):
         target_mz=0
     else: #numeric case
         target_mz=(1+np.cos(ptype*np.pi/180))/2
+    multiband=False
     try:
-        # Will give you bandwidth across the first band for dual-band pulses
+        # Will give you bandwidth across the first band for dual-band pulses but then the repeat will be off
         halfmax_idx1=np.flatnonzero(bloch1.finalM0[2,:]<target_mz)[0]
         halfmax_idx2=halfmax_idx1+np.flatnonzero(bloch1.finalM0[2,halfmax_idx1:]>target_mz)[0]+1
         bw=fvec[halfmax_idx2]-fvec[halfmax_idx1]
+        # Is there a second band?
+        try:
+            halfmax_idx3=np.flatnonzero(bloch1.finalM0[2,halfmax_idx2+1:]<target_mz)
+            if len(halfmax_idx3)!=0:
+                multiband=True
+        except IndexError:
+            pass 
     except IndexError:
         bw=0
         warnings.warn('ERROR: Bandwidth calculation failed. You may have entered an off-resonance pulse with an incorrect f0 estimate. Run your_RF_pulse.plot_freq_profile() to view Mz-frequency plot',FidAWarningRF)
     else:
         # Now repeat over a narrower bandwidth to get more exact
-        fvec=np.linspace(-bw+f0/1000,bw+f0/1000,100000)
-        bloch1=BlochSimulator(rf,Tp*1000,fvec,w1max/1000,gamma=gamma)
-        halfmax_idx1=np.flatnonzero(bloch1.finalM0[2,:]<target_mz)[0]
-        halfmax_idx2=halfmax_idx1+np.flatnonzero(bloch1.finalM0[2,halfmax_idx1:]>target_mz)[0]+1
-        bw=fvec[halfmax_idx2]-fvec[halfmax_idx1]
-        estf0=fvec[halfmax_idx1]+bw/2
-        if np.abs(estf0-f0/1000)>0.25:
-            warnings.warn('WARNING: Entered f0={:g} is more that 250 Hz different than estimated f0={:g}. You may have incorrectly entered the f0 for an off-resonance pulse.'.format(f0,estf0*1000),FidAWarningRF)
+        if not multiband:
+            fvec=np.linspace(-bw+f0/1000,bw+f0/1000,100000)
+            bloch1=BlochSimulator(rf,Tp*1000,fvec,w1max/1000,gamma=gamma)
+            halfmax_idx1=np.flatnonzero(bloch1.finalM0[2,:]<target_mz)[0]
+            halfmax_idx2=halfmax_idx1+np.flatnonzero(bloch1.finalM0[2,halfmax_idx1:]>target_mz)[0]+1
+            bw=fvec[halfmax_idx2]-fvec[halfmax_idx1]
+            estf0=fvec[halfmax_idx1]+bw/2
+            if np.abs(estf0-f0/1000)>0.25:
+                warnings.warn('WARNING: Entered f0={:g} is more that 250 Hz different than estimated f0={:g}. You may have incorrectly entered the f0 for an off-resonance pulse.'.format(f0,estf0*1000),FidAWarningRF)
+        else:
+            warnings.warn('WARNING: Suspected multi-band pulse. Bandwidth estimate will be for first band and coarse')
+            estf0=fvec[halfmax_idx1]+bw/2
     finally:
         pulse_freq_profile=bloch1.finalM0
         fidx=np.flatnonzero(fvec>f0/1000)[0]
