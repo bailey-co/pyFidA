@@ -39,7 +39,7 @@ For those interested in programming, there are several important underlying chan
 pyFidA is not yet available through a package management system. The github repository needs to be cloned and added to your path before it can be imported. The dependency requirements for pyFidA include: numpy, scipy, matplotlib, pandas and spec2nii. If you install [spec2nii](https://github.com/wtclarke/spec2nii), this should cover all of the other dependencies needed for pyFidA.
 
 ## License
-I think, by default, this shows up in a separate tab on github, but you can also link the file here
+This project is licensed under a [BSD 3-Clause License](LICENSE.txt).
 
 ## References
 - [fid-A for Matlab](https://github.com/CIC-methods/FID-A)
