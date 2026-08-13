@@ -329,7 +329,7 @@ def io_loadspec_twix(fname,dim_overrides=None,multiraid=None,quiet=False,verbose
     for fn,eachim in zip(f_out,imout):
         print('Converting {:s}'.format(fn))
         tmp_fid=nii_to_fidA(eachim)
-        if subspecs is not None:
+        if subspecs is not None: # Allows the user to manually change some of the averages dimension into subspecs
             if 'subspecs' not in tmp_fid:
                 new_shape=list(tmp_fid.sz)
                 if subspecs>1:
@@ -343,6 +343,23 @@ def io_loadspec_twix(fname,dim_overrides=None,multiraid=None,quiet=False,verbose
                     #tmp_fid.averages and tmp_fid.subspecs will be automatically re-calculated because they are FID object properties
             else:
                 print('WARNING: Subspecs already in dims. Ignoring user-defined subspecs')
+        else:
+            # Try to find an indication of the pulse sequence in the file name
+            seq_file=tmp_fid.nii_mrs['hdr_ext']['PulseSequenceFile']['Value'].lower()
+            # if any([seq_test in seq_file for seq_test in ['rm_special','vq_special']]):
+            #     isSpecial=True
+            # elif any([seq_test in seq_file for seq_test in ['jn_svs_special','md_Adiab_Special','md_Special','md_Inv_special','pt_svs_special_31p']]):
+            #     isjnSpecial=True
+            # elif any([seq_test in seq_file for seq_test in ['jn_MEGA_GABA']]):
+            #     isjnMP=True
+            # # More cases to add here
+            if 'special' in seq_file or 'mega' in seq_file:
+                if 'extras' in tmp_fid:
+                    tmp_fid._dimlist[tmp_fid._dimlist.index('extras')]='subspecs'
+                    # At least one dataset is off by a complex conjugate
+                    tmp_fid.fids=np.conj(tmp_fid.fids)
+                    # May need to change raw subspecs?
+                    tmp_fid.flags['subtracted']=False
         out_ims.append(tmp_fid)
     if len(out_ims)==1:
         return out_ims[0]

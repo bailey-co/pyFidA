@@ -3,7 +3,10 @@
 """
 Created on Tue Mar  3 14:51:24 2026
 
-@author: nearlabmacbook1
+@author: Colleen Bailey
+Example run script for Bruker raw data, where metabolite data have multiple
+coils and multiple averages. (Reference data read in from fid.refscan are
+already coil-combined and for 1 average)
 """
 
 import os
@@ -57,13 +60,10 @@ def run_pressproc_brukAuto(fname, fname_w=None,aaDomain='t',tmaxin=0.2,iterin=20
     out_rm=out_av_cc.copy()
     # Now align averages
     if fname_w is not None:
-        if out_w_cc.averages>1:
-            out_w_aa=pyFidA.op_alignAverages(out_w_cc,tmax=tmaxin,med='f')
-        else:
-            out_w_aa=out_w_cc.copy()
+        out_w_aa=pyFidA.op_alignAverages(out_w_cc,tmax=tmaxin,med='f',return_extra_args=False)
     if out_mets_cc.averages>1:
         if aaDomain=='t':
-            [out_aa,phs,fs]=pyFidA.op_alignAverages(out_mets_cc,med='f')
+            [out_aa,phs,fs]=pyFidA.op_alignAverages(out_mets_cc,tmax=tmaxin,med='f')
         else:
             [out_aa,phs,fs]=pyFidA.op_alignAverages(out_mets_cc,freq_range=[1.6,4],tmax=tmaxin,med='f')
         xdata=np.r_[:out_aa.averages]
@@ -106,10 +106,7 @@ def run_pressproc_brukAuto(fname, fname_w=None,aaDomain='t',tmaxin=0.2,iterin=20
     # Now combine the aligned averages
     out_av=pyFidA.op_averaging(out_aa)
     if fname_w is not None:
-        if out_w_aa.averages>1:
-            out_w_av=pyFidA.op_alignAverages(out_w_aa)
-        else:
-            out_w_av=out_w_aa.copy()
+        out_w_av=pyFidA.op_alignAverages(out_w_aa,return_extra_args=False)
     # Now do automatic zero-order phase correction (use creatine peak)
     out_ph,ph0=pyFidA.op_autophase(out_av,ppmmin=2.9,ppmmax=3.1,return_extra_args=True)
     if fname_w is not None:

@@ -280,7 +280,7 @@ def op_alignAverages(indat,tmax=None,med='n',ref=None,mode='fp',freq_range=None,
             outdat.flags['freqcorrected']=True
         if 'p' in mode:
             outdat.flags['phasecorrected']=True
-        return outdat,np.squeeze(phs),np.squeeze(fs)
+    return outdat,np.squeeze(phs),np.squeeze(fs)
 
 @alter_return_args
 def op_alignAverages_fd(indat, minppm, maxppm, tmax=None, med='n', ref=None, mode='fp', initPars=None, return_extra_args=None):
@@ -785,7 +785,7 @@ def op_combinesubspecs(indat,mode):
         sumslice0[indat.dims['subspecs']]=slice(0,None,2)
         newfid=np.sum(indat.fids[tuple(sumslice1)]-indat.fids[tuple(sumslice0)],axis=indat.dims['subspecs'])/indat.subspecs
     outdat.fids=newfid
-    outdat.dimlist.remove('subspecs')
+    outdat._dimlist.remove('subspecs')
     # setting number of subspecs now done via property
     outdat.flags['subtracted']=True
     return outdat
