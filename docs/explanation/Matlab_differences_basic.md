@@ -99,16 +99,16 @@ averaged_fid=op_averaging(coil_combined_fid)
 averaged_fid=op_averaging(op_addrcvrs(metfid))
 # But you can turn it off for a single function call with the return_extra_args input argument
 coil_combined_fid,fids_presum,specs_presum,coilcombos=op_addrcvrs(metfid,return_extra_args=True)
-stop_chaining()
 
-# Now multiple arguments are returned again
+# After calling stop_chaining, multiple arguments are returned again
+stop_chaining()
 phased_average_fid,ph0=op_autophase(averaged_fid)
 # This can also be overridden for a single function call with the return_extra_args 
 # input argument
 phased_average_fid=op_autophase(averaged_fid,return_extra_args=False)
 ```
 3. If you think that you will almost always be ignoring the "extra" output arguments and only using the first output (the first processed spectrum), you can change the setting in your version of pyFidA so that it loads with a default behaviour that returns only the first argument on these processing functions. To do this, you need to find the alter_return_args.py file and open it. If you have imported pyFidA using "import pyFidA" you can find this file by first typing pyFidA.\__file__. This will give you the location of the pyFidA code for your current environment. Within this folder, you can navigate to pyFidA/fidA_processing and alter_return_args.py is in this folder. Near the top of the alter_return_args.py file, there is a line that says "\_use_default=ReturnBehaviour(True)". Change the word True to False (there is a comment above this line in the file explaining how users can change this line to adjust the default behaviour) and save the changes, overwriting the original file.
-Once this is done (you will need to restart Python after saving changes), you no longer need to use the return_extra_args=False or the allow_chaining() function to get the single output argument behaviour. It is the default every time you import pyFidA. You can switch from the default behaviour by setting return_extra_args=True or calling stop_chaining()
+Once this is done (you will need to restart Python after saving changes), you no longer need to use the return_extra_args=False or the allow_chaining() function to get the single output argument behaviour. It is the default every time you import pyFidA. You can switch from the default behaviour with the input argument return_extra_args=True or calling stop_chaining()
 ```python
 # For users who have set _use_default=ReturnBehaviour(False) in the file alter_return_args.py
 from pyFidA import *
@@ -211,13 +211,16 @@ In Matlab, sim_onepulse is an excitation around the 'x' axis. sim_one_pulse_arbP
 ## RF Pulses
 
 ### Estimation of time-w1 product
-The estimation of the time-w1 product related to the desired flip angle works slightly differently than in Matlab for pulses that are no phase-modulated. In Matlab, Bloch simulations are run at a range of B1 power values to determine the magnetization at the end of the RF pulse. The longitudinal magnetization, Mz, is then plotted versus the corresponding B1 values and the user is asked to input the power corresponding to the flip angle that they want based on this visualization.
+The estimation of the time-w1 product related to the desired flip angle works slightly differently than in Matlab for pulses that are not phase-modulated. In Matlab, Bloch simulations are run at a range of B1 power values to determine the magnetization at the end of the RF pulse. The longitudinal magnetization, Mz, is then plotted versus the corresponding B1 values and the user is asked to input the power corresponding to the flip angle that they want based on this visualization.
 
 In Python, figures do not always display mid-function and not all setups can easily accept user input; it depends on the matplotlib backend. For example, standard Jupyter notebook setups run a cell at a time without stopping for user input, or some qt backends use inline plotting or figures that don't display until the current code finishes running. This means that not all users will be able to see the output in order to enter a B1 power. While it is possible to require users to work with certain backends or more interactive gui setups could be designed with other Python modules, this adds to the user requirements for a basic installation. Instead, pyFidA attempts to estimate the first Mz point that most closely corresponds to the desired flip angle (eg. the w1 value where Mz crosses 0 for a 90 degree pulse) and then outputs the plot of w1 versus Mz so that the user can double-check it (assuming the suppress_plots=False in the call to create a new instance of the RF_pulse object, the default). Users can still alter the w1 after seeing the plot with my_rf_pulse.w1=neww1.
 
 ### More properties available
-List the w1, etc. stuff here.
-Not sure whether it should be noted here or elsewhere, but Matlab uses "type" as the input argument for RF_pulse to define the pulse type. In Python, "type" is a special/reserved word - actually, not reserved. I just checked and you can set it to a value, so that's even worse than "in", which is protected. So you shouldn't use it as an input argument. I've renamed it ptype/type_p/pulse_type in different areas. (I think the init call might have different options than in Matlab so it might be worth starting this section on RF_pulses with those differences and including this bit there).
+TBC
+
+List the new properties available (w1, etc)
+
+Not sure whether it should be noted here or elsewhere, but Matlab uses "type" as the input argument for RF_pulse to define the pulse type. In Python, "type" is a special/reserved word. I've renamed it ptype/type_p/pulse_type in different areas. (I think the init call might have different options than in Matlab so it might be worth starting this section on RF_pulses with those differences and including this bit there).
 
 ### Plotting pulses
 More info about the vectors generated/stored and plotting functions.
@@ -227,6 +230,6 @@ Loading and manipulating off-resonance RF pulses in Matlab was not completed whe
 
 In pyFidA, a different approach is taken. By default, it is assumed that the pulse is on-resonance (f0=0) and the time-w1max and time-bandwidth products are calculated for this frequency. Alternatively, the user can provide a frequency offset in the input argument f0 if this value is known. The waveform in the file is then loaded and stored as-is in the RF_pulse object (ie. the off-resonance waveform is stored). The time-w1max and time-bandwidth products are calculated for this waveform at the indicated frequency value. A warning is thrown if this value appears to be incorrect (the desired flip angle cannot be achieved within a reasonable w1 range or the bandwidth cannot be calculated); a warning is also thrown in the f0=0 case if that appears to be incorrect.
 
-If the f0 value is not known, or the user is not sure whether the pulse stored in the file is off-resonance or not, the user can load the RF_pulse object with f0=None. This tells Python to try to find the offset frequency and to calculate tw1 and tbw at that frequency. Because this is done via a loop through w1 values across a range for frequencies, each of which involves Bloch simulations of the pulse, it can take a long time to run, which is why it is not the default, but is an option for pulses where the resonance frequency is unknown.
+If the f0 value is not known, or the user is not sure whether the pulse stored in the file is off-resonance or not, the user can load the RF_pulse object with f0=None. This tells Python to try to find the offset frequency and to calculate tw1 and tbw at that frequency. Because this is done via a loop through w1 values across a range of frequencies, each of which involves Bloch simulations of the pulse, it can take a long time to run, which is why it is not the default, but is an option for pulses where the resonance frequency is unknown.
 
-In addition, not all functions in the Matlab RF toolbox were designed to work for gradient-modulated or off-resonance pulses (eg. rf_freqshift does not work properly as written for gradient-modulated functions), and several functions assume that the waveform has even timesteps without checking that this is the case. I have attempted to provide functionality for these cases in pyFidA, or to run a check and throw an error when a function cannot be implemented for a particular type of RF pulse.
+In addition, not all functions in the Matlab RF toolbox were designed to work for gradient-modulated or off-resonance pulses, and several functions assume that the waveform has even timesteps without checking that this is the case. I have attempted to provide functionality for these cases in pyFidA, or to run a check and throw an error when a function cannot be implemented for a particular type of RF pulse.
