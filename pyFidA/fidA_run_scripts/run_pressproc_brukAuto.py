@@ -149,6 +149,6 @@ def run_pressproc_brukAuto(fname, fname_w=None,aaDomain='t',tmaxin=0.2,iterin=20
 
 if __name__ == '__main__':
     
-    pname='/Users/nearlabmacbook1/Documents/BrukerData/FUS_pentobarbital/20240916_115232_SKWU1A_Sept16_2024_RK50_HL_SKWU1A_Sept16_20_1_3/5'
+    pname='../../exampleData/bruker'
     out1=run_pressproc_brukAuto(os.path.join(pname,'rawdata.job0'),fname_w=os.path.join(pname,'fid.refscan'),volume=15.0)
     
