@@ -12,7 +12,7 @@ Classes have a number of advantages over structs. A big one is that classes don'
 <a name="fidobject"></a>
 ### 1. The FID object
 
-####1.1 The fids and specs attributes
+1.1 The fids and specs attributes
 
 In Matlab, suppose that spectral data are in a structure named mydata, which has a matrix mydata.fids with 250 separate free induction decay averages, such that it has size (2048,250). This structure will also have mydata.specs, which should be the inverse Fourier transform of mydata.fids with size (2048,250). If you call the op_averaging function, then the mydata.fids matrix will be averaged over the "averages" dimension; it then needs to run the inverse Fourier transform calculation on the new averaged free induction decay in order to get a new value for mydata.specs, which is also saved in the structure in case it is needed later (which it may or may not be).
 
@@ -24,7 +24,7 @@ In cases where it is easier to work in the spectral domain (eg. first-order phas
 
 You will still need to change the spectral width or center frequency if the assignment to myfid.specs has a different frequency axis, just as you would in Matlab. There is no way for the setter to know if the ppm range has changed so this cannot be done automatically. However, there are other automatic links between other properties in the FID class that should make this change simpler, as described in the next sections.
 
-####1.2 Bo, spectralwidth, txfreq, center_freq_ppm, spectralwidthppm, dwelltime, t, ppm
+1.2 Bo, spectralwidth, txfreq, center_freq_ppm, spectralwidthppm, dwelltime, t, ppm
 
 These properties all relate to each other. Thus, only some need to be stored as values; the remaining ones can be functions that run the appropriate calculation when called. I have chosen to assign the spectralwidth, center_freq_ppm and txfreq values at initialization. The others make use of the property decorator so that they are calculated automatically from these and GAMMA (see next subsection), but they also have setters so that a user can set a new dwelltime and this will alter the underlying spectralwidth value stored in the object instance.
 
