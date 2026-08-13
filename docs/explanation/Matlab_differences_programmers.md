@@ -4,15 +4,15 @@ This document explains the differences between pyFidA and Matlab fid-A that are 
 In general, pyFidA aims to take advantage of Python features like classes and dunder methods in order to reduce the amount of code, remove unnecessary "extra" calculations in many processing functions and to make the code more generalizable. This should make it easier to add in functionality for non-proton nuclei, MRSI capabilities, processing for 2D and 3D NMR data with indirect dimensions, or other user-defined extensions. Some familiarity with Python and numpy is assumed when outlining the changes below.
 * [FID object](#fidobject)
 
-## Using classes in place of structs
+# Using classes in place of structs
 Matlab uses a struct to hold data in the form of free induction decays and spectra. Various information about this data is contained in different fields of the struct. Similarly, RF pulses are loaded into a struct that contains various information about the pulse. In Python, these Matlab structs have become classes: FID and RF_pulse. There is also a Hamiltonian class used in the simulation module, although it is much smaller.
 
 Classes have a number of advantages over structs. A big one is that classes don't have fields (attributes) that just hold arrays and numbers. Instead, they can have functions. These functions can be used to make automatic connections between related attributes, like a free induction decay over time and its inverse Fourier transform, which produces a spectrum. Python also has an @property decorator so that these functions can be made to look like an attribute on the user side, even though they reference a function call (eg. you can type "mydata.specs" instead of "mydata.get_specs()". Using functions in this way means that related attributes do not all need to be re-calculated when one is changed, which reduces the amount of code in many processing functions. It also allows new properties to be added to the class that it might be convenient for users to have access to without having to update every processing function that would change a related attribute. This will likely become clearer with specific examples, outlined below. More details can be found in the docstrings within the module for each class.
 
 <a name="fidobject"></a>
-### 1. The FID object
+## 1. The FID object
 
-1.1 The fids and specs attributes
+### 1.1 The fids and specs attributes
 
 In Matlab, suppose that spectral data are in a structure named mydata, which has a matrix mydata.fids with 250 separate free induction decay averages, such that it has size (2048,250). This structure will also have mydata.specs, which should be the inverse Fourier transform of mydata.fids with size (2048,250). If you call the op_averaging function, then the mydata.fids matrix will be averaged over the "averages" dimension; it then needs to run the inverse Fourier transform calculation on the new averaged free induction decay in order to get a new value for mydata.specs, which is also saved in the structure in case it is needed later (which it may or may not be).
 
@@ -24,7 +24,7 @@ In cases where it is easier to work in the spectral domain (eg. first-order phas
 
 You will still need to change the spectral width or center frequency if the assignment to myfid.specs has a different frequency axis, just as you would in Matlab. There is no way for the setter to know if the ppm range has changed so this cannot be done automatically. However, there are other automatic links between other properties in the FID class that should make this change simpler, as described in the next sections.
 
-1.2 Bo, spectralwidth, txfreq, center_freq_ppm, spectralwidthppm, dwelltime, t, ppm
+### 1.2 Bo, spectralwidth, txfreq, center_freq_ppm, spectralwidthppm, dwelltime, t, ppm
 
 These properties all relate to each other. Thus, only some need to be stored as values; the remaining ones can be functions that run the appropriate calculation when called. I have chosen to assign the spectralwidth, center_freq_ppm and txfreq values at initialization. The others make use of the property decorator so that they are calculated automatically from these and GAMMA (see next subsection), but they also have setters so that a user can set a new dwelltime and this will alter the underlying spectralwidth value stored in the object instance.
 
@@ -40,7 +40,7 @@ In summary, parameters related to frequency and time are:
 
 The vectors t and ppm are read-only and cannot be changed through a setter. These vectors are dependent on multiple other parameters and it isn't clear which should be adjusted when a new vector is entered. Instead, functions like op_freqrange calculate the spectralwidth and center_freq_ppm corresponding to the new spectrum and set these. Others are adjusted automatically; eg. any zero-padding of the fid (adding zeros to the end of the time dimension) will automatically be incorporated into the t vector because it uses the number of points in the fid attribute (and the inverse when truncating the fid in the time dimension). If you try to set t or ppm directly (or even \_ppmmin), you will get "AttributeError: can't set attribute." To change these vectors, the programmer needs to set the underlying related values explicitly, like center_freq_ppm.
 
-1.3 A note about GAMMA
+### 1.3 A note about GAMMA
 
 The gyromagnetic ratio GAMMA is determined from the nucleus assigned when an instance of the FID object is created ("1H" by default). The GAMMA value is pulled from a GAMMA_DICT dictionary of constants that is contained in fidA_common (and imported into other modules as needed):
 ```python
@@ -55,7 +55,7 @@ newfid=pyFidA.FID(fid_data,spectralwidth=4000,txfreq=300.32e6,dims=['t','average
 ```
 The intention here was to allow for expansion of fidA to other nuclei relatively easily by adding gyromagnetic ratios to GAMMA_DICT as needed without the need for the user to enter them and then referencing the GAMMA attribute during processing. However, it seemed wise to allow the user to set this value in exceptional cases where they might be imaging a nucleus not contained in the dictionary. Therefore, GAMMA is currently designed with a setter so that the semi-private attribute self.\_GAMMA can be altered if needed.
 
-1.4 Other read-only properties
+### 1.4 Other read-only properties
 
 Several other values that need to be set explicitly when they change in Matlab fid-A are instead read-only properties that call a function and therefore do not need to be updated explicitly in processing functions:
 * sz: returns mydata.fids.shape
@@ -67,7 +67,7 @@ Several other values that need to be set explicitly when they change in Matlab f
 
 It is probably also worth noting that Matlab used "subSpecs" in the dims structure, "subspecs" when referencing the number of subspecs through "mydata.subspecs" and "rawSubspecs" for mydata.rawSubspecs. This inconsistent capitalization was difficult to remember. In pyFidA, it is "subspecs" except for rawSubspecs, where the first S is capitalized, similar to rawAverages vs averages.
 
-1.5 1D arrays and singleton mydata.fids dimensions
+### 1.5 1D arrays and singleton mydata.fids dimensions
 
 Python allows 1D arrays (eg. mydata.fids.sz can return [2048,]) so you can have just the time dimension. Matlab is designed to have a minimum of 2-dimensions, eg. (2048,1), and Matlab fid-A typically assigns this singleton dimension to averages.
 
@@ -75,7 +75,7 @@ Instead of keeping the Matlab approach with a minimum requirement for two dimens
 
 While it is possible to create an instance of the FID object with singleton dimenions, eg. mydata.fids.shape=[2048,1] and mydata.dims={'t':0,'averages':1}, this is not recommended and the singleton dimension may not be preserved through all processing steps. eg. When an array is sliced to return a single average like op_takaverages(myfid,4), the returned FID object has the averages dimension removed. You can use the op_squeeze(myfid) function to remove singleton dimensions.
 
-1.6 The dims attribute
+### 1.6 The dims attribute
 
 Quite a long explanation follows, but the short version is that you can get information about the dimensions of the fid (time, coils, averages, etc.) using dot notation in pyFidA in a way that looks similar to Matlab. eg. myfid.dims.t will return the index that corresponds to the time dimension in myfid.fids. However, the underlying class that stores the dimensional information and needs to be altered if the dimensions are changed is a list and semi-private attribute, myfid._dimlist. This information is made into the read-only property myfid.dims, which is a dictionary that allows items to be accessed via dot notation to replicate the Matlab form of the calls (so myfid.dims['t'] is equivalent to myfid.dims.t). Items that are not present will throw an error rather than returning -1 (Matlab returns 0 for missing dimensions but the equivalent of 0-indexed arrays in Python would be -1).
 
@@ -126,7 +126,7 @@ The dictionary is constructed such that it only contains items in the list. Dime
 
 A final note: when creating an instance of the FID object, the dimensional information should be input as a list, not a dict. In the \__init__ method of the FID object, you can see that the input argument is named dims but it is assigned to self.\_dimlist. Despite its somewhat confusing name, it is not assigned to the dims dict directly (because the dict is a read-only property) and so should not be entered in a dict format.
 
-1.7 The flags attribute and error/warning checks for processing functions
+### 1.7 The flags attribute and error/warning checks for processing functions
 
 As with dims, the flags attribute in pyFidA is basically a dict, although I have added functionality to use dot notation. So you can call either mydata.flags['averaged'] or mydata.flags.averaged. My code uses the dictionary notation and the dot notation functionality was only added in after-the-fact for other users more used to the Matlab fid-A notation.
 
@@ -134,7 +134,7 @@ I have updated the flags in the processing functions in the same way as is done 
 
 There are a few exceptions: mydata.flags['zeropadded'] is more easily checked with a flag rather than searching through the end of the time dimension of mydata.fids to try to see if all of the values are 0. And there is no easy way to check from the data whether it has been filtered or downsampled. However, these flag values are rarely if ever called and don't even seem to be consistently updated by all processing functions. In cases related to averaging, subspecs and coils, it is recommended to use the dimensional information rather than the flags for checks because there are more safeguards in place to ensure that it is being properly updated or not improperly overwritten, keeping it consistent with the data. 
 
-1.8 Convenience methods (adding and scaling spectra, selecting slices of the fid)
+### 1.8 Convenience methods (adding and scaling spectra, selecting slices of the fid)
 
 Python classes allow dunder methods (double underscore methods, sometimes called magic methods) to make use of common operators that may be more intuitive. For example, the __add__ method can be used to describe what Python should do when the '+' operator is used with objects from your class. The FID class has several of these dunder methods, which can be used in place of fidA functions (the fidA_processing functions are still available for those familiar with them from Matlab).
 
@@ -204,15 +204,15 @@ Note that flags are *not* adjusted in the current slicing behaviour so, even if 
 
 Similarly, a \__setitem__ dunder method is defined for uses like myfid[:,5:8]=myarray, which would be equivalent to myfid.fids[:,5:8]=myarray. This, of course, requires that myarray is the correct size to fit in this slice of myfid, or else an error would be thrown. and this would set that part of myfid.fids, provided that myarray is the correct size. The FID slice can be set using either a numpy array or another FID object. eg. if you want to want to phase just one subspec (and subsecs were the second dimension), you could run myfid[:,1]=pyFidA.op_addphase(myfid[:,1]). The op_addphase function returns a FID object, but \__setitem__ will take the fids attribute from that returned object and assign it to myfid.fids[:,1].
 
-## The RF_pulse object
+# The RF_pulse object
 I covered most of the stuff about interactive plotting and the time-w1 estimation in Matlab_differences_basic.md. Not sure if there's anything that needs to be added here.
 
 You could implement the add dunder method for RF pulses to replace something like rf_combineRF, but the use cases seem much more limited and less intuitive.
 
-## Peak-fitting functions
+# Peak-fitting functions
 
 
-## Return arguments
+# Return arguments
 (I think some of this is covered in basics so mostly you just want to reference that. But you can have some explanation of how programmers can add it to their own functions here).
 
 For return args: Users familiar with Python programming can add this functionality to their own functions by importing and applying the @alter_return_args decorator to their function and then adding a variable with default "None" to the end of the input arguments. The exact name of the input argument does not matter (by convention, I have used "return_extra_args") but it MUST be the last argument. The remainder of the function is the same and the function should return all output arguments in this part of the code (it is the decorator that decides how many are returned to the user). Also note that the default value of the last input argument should be None. This is what allows its default behaviour to be "set" by allow_chaining()
