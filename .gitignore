@@ -1,3 +1,4 @@
-file_to_ignroe.txt
 /.ipynb_checkpoints
 /__pycache__
+.DS_Store
+FutureWork.txt
