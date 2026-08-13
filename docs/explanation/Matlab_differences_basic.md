@@ -193,7 +193,7 @@ fid1[:,:10] # equivalent to op_takeaverages(fid1,1:10) in Matlab if fid1.dims['a
 The details of how this works are contained in a section of "[Matlab differences for Programmers](Matlab_differences_programmers.md)".
 
 ### More generalized processing functions
-In Matlab, some processing functions do not operate on data with multiple dimensions. Sometimes this makes sense (eg. in op_alignAverages, you want data where coils have been combined before you try to align the averages) and this behaviour is preserved in pyFidA in those cases. However, (actually, I need to go through and see if there is a good example here. The generalizability might mainly be a benefit for programmers adding their own dimensions).
+In Matlab, some processing functions do not operate on data with multiple dimensions. Sometimes this makes sense (eg. in op_alignAverages, you want data where coils have been combined before you try to align the averages) and this behaviour is preserved in pyFidA in those cases. However, for a function like op_ppmref, it may be that the user wants to know a peak position for every average or even every coil, rather than requiring the spectrum to already be averaged or coil-combined. pyFidA allows spectra with multiple dimensions to be entered in these cases.
 
 ### Fitting algorithms
 For fitting, I have typically used scipy.optimize.curve_fit. This algorithm may be slightly different or have some different default options relative to Matlab's curve fitting functions. This could produce small differences in the results of functions like op_getSNR that attempt to fit a baseline.
