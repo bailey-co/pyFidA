@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyFidA"
+authors = [
+	{name="Colleen Bailey", email = "cbailey@sri.utoronto.ca"},
+	]
+dynamic = ["version"]
+description = "pyFidA for magnetic resonance spectroscopy loading, processing and display."
+readme = "README.md"
+license = "BSD-3-clause"
+license-files = ["LICENSE.txt"]
+requires-python = ">=3.9"
+keywords = ["mri","mrs","spectroscopy","pyFidA","fid-A","fidA"]
+dependencies = [
+	"spec2nii>=0.8",
+	"numpy",
+	"scipy",
+	"matplotlib",
+	"pandas",
+	]
+
+[project.optional-dependencies]
+display = ["seaborn"]
+
+[tool.setuptools]
+packages = ["pyFidA"]
