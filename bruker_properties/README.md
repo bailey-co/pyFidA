@@ -1,1 +1,0 @@
-Set of files outlining the properties to load from the Bruker files (method, procs, acqu, etc.) for different types of files (raw, fid, 2dseq). Adapted from spec2nii to incorporate .raw files. Note: only tested in PV6.0.1.

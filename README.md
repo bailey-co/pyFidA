@@ -1,3 +1,5 @@
-This is a subset of the [Matlab fid-A commands for MRS by Jamie Near](https://github.com/CIC-methods/FID-A) that have been translated to Python. You can see an example notebook here:
+This is a subset of the [Matlab fid-A commands for MRS by Jamie Near](https://github.com/CIC-methods/FID-A) that have been translated to Python. The code is a work in progress, as is the documentation.
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/bailey-co/pyFID-A-for-binder/HEAD?urlpath=%2Fdoc%2Ftree%2FMRS_processing.ipynb)
+For users familiar with Matlab fid-A, basic data processing functions can be called in the same way. Some minor differences can be found in [basic differences](docs/explanation/Matlab_differences_basic.md).
+
+For those interested in programming, there are several important underlying changes, with Matlab structs being converted to Python objects. These differences are outlined in the [differences for programmers](docs/explanation/Matlab_differences_programmers.md).
