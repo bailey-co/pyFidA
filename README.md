@@ -2,4 +2,4 @@ This is a subset of the [Matlab fid-A commands for MRS by Jamie Near](https://gi
 
 For users familiar with Matlab fid-A, basic data processing functions can be called in the same way. Some minor differences can be found in [basic differences](docs/explanation/Matlab_differences_basic.md).
 
-For those interested in programming, there are several important underlying changes, with Matlab structs being converted to Python objects. These differences are outlined in the [differences for programmers](docs/explanation/Matlab_differences_programmers.md). In particular, there is an explanation of the [FID class](docs/explanation/Matlab_differences_programmers.md#fid_object) that replaces Matlab's struct for holding spectral data.
+For those interested in programming, there are several important underlying changes, with Matlab structs being converted to Python objects. These differences are outlined in the [differences for programmers](docs/explanation/Matlab_differences_programmers.md). In particular, there is an explanation of the [FID class](docs/explanation/Matlab_differences_programmers.md#fidobject) that replaces Matlab's struct for holding spectral data.
