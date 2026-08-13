@@ -11,7 +11,9 @@ Classes have a number of advantages over structs. A big one is that classes don'
 
 <a name="fidobject"></a>
 ### 1. The FID object
+
 1.1 The fids and specs attributes
+
 In Matlab, suppose that spectral data are in a structure named mydata, which has a matrix mydata.fids with 250 separate free induction decay averages, such that it has size (2048,250). This structure will also have mydata.specs, which should be the inverse Fourier transform of mydata.fids with size (2048,250). If you call the op_averaging function, then the mydata.fids matrix will be averaged over the "averages" dimension; it then needs to run the inverse Fourier transform calculation on the new averaged free induction decay in order to get a new value for mydata.specs, which is also saved in the structure in case it is needed later (which it may or may not be).
 
 In Python, mydata is an instance of the FID class, which stores the 250 free induction decay averages in mydata.fids, a numpy array with shape [2048,250], similar to Matlab. However, mydata.specs does not store a numpy array. Search for "def specs" in the FID.py module to see that specs is defined as a function. Above that, the @property decorator allows this to be referenced as mydata.specs without the brackets that are typically needed to call a function. Put another way, any call to "get" mydata.specs doesn't return a saved array but instead calls a function. This function takes the inverse Fourier transform of whatever numpy array is stored in mydata.fids at that moment.
@@ -23,6 +25,7 @@ In cases where it is easier to work in the spectral domain (eg. first-order phas
 You will still need to change the spectral width or center frequency if the assignment to myfid.specs has a different frequency axis, just as you would in Matlab. There is no way for the setter to know if the ppm range has changed so this cannot be done automatically. However, there are other automatic links between other properties in the FID class that should make this change simpler, as described in the next sections.
 
 1.2 Bo, spectralwidth, txfreq, center_freq_ppm, spectralwidthppm, dwelltime, t, ppm
+
 These properties all relate to each other. Thus, only some need to be stored as values; the remaining ones can be functions that run the appropriate calculation when called. I have chosen to assign the spectralwidth, center_freq_ppm and txfreq values at initialization. The others make use of the property decorator so that they are calculated automatically from these and GAMMA (see next subsection), but they also have setters so that a user can set a new dwelltime and this will alter the underlying spectralwidth value stored in the object instance.
 
 In summary, parameters related to frequency and time are:
@@ -38,6 +41,7 @@ In summary, parameters related to frequency and time are:
 The vectors t and ppm are read-only and cannot be changed through a setter. These vectors are dependent on multiple other parameters and it isn't clear which should be adjusted when a new vector is entered. Instead, functions like op_freqrange calculate the spectralwidth and center_freq_ppm corresponding to the new spectrum and set these. Others are adjusted automatically; eg. any zero-padding of the fid (adding zeros to the end of the time dimension) will automatically be incorporated into the t vector because it uses the number of points in the fid attribute (and the inverse when truncating the fid in the time dimension). If you try to set t or ppm directly (or even \_ppmmin), you will get "AttributeError: can't set attribute." To change these vectors, the programmer needs to set the underlying related values explicitly, like center_freq_ppm.
 
 1.3 A note about GAMMA
+
 The gyromagnetic ratio GAMMA is determined from the nucleus assigned when an instance of the FID object is created ("1H" by default). The GAMMA value is pulled from a GAMMA_DICT dictionary of constants that is contained in fidA_common (and imported into other modules as needed):
 ```python
 # newfid.GAMMA will give 42577000 because this is 1e6 times the value in GAMMA_DICT['1H']
@@ -52,6 +56,7 @@ newfid=pyFidA.FID(fid_data,spectralwidth=4000,txfreq=300.32e6,dims=['t','average
 The intention here was to allow for expansion of fidA to other nuclei relatively easily by adding gyromagnetic ratios to GAMMA_DICT as needed without the need for the user to enter them and then referencing the GAMMA attribute during processing. However, it seemed wise to allow the user to set this value in exceptional cases where they might be imaging a nucleus not contained in the dictionary. Therefore, GAMMA is currently designed with a setter so that the semi-private attribute self.\_GAMMA can be altered if needed.
 
 1.4 Other read-only properties
+
 Several other values that need to be set explicitly when they change in Matlab fid-A are instead read-only properties that call a function and therefore do not need to be updated explicitly in processing functions:
 * sz: returns mydata.fids.shape
 * ndim: returns the length of mydata.fids.shape
@@ -63,6 +68,7 @@ Several other values that need to be set explicitly when they change in Matlab f
 It is probably also worth noting that Matlab used "subSpecs" in the dims structure, "subspecs" when referencing the number of subspecs through "mydata.subspecs" and "rawSubspecs" for mydata.rawSubspecs. This inconsistent capitalization was difficult to remember. In pyFidA, it is "subspecs" except for rawSubspecs, where the first S is capitalized, similar to rawAverages vs averages.
 
 1.5 1D arrays and singleton mydata.fids dimensions
+
 Python allows 1D arrays (eg. mydata.fids.sz can return [2048,]) so you can have just the time dimension. Matlab is designed to have a minimum of 2-dimensions, eg. (2048,1), and Matlab fid-A typically assigns this singleton dimension to averages.
 
 Instead of keeping the Matlab approach with a minimum requirement for two dimensions, it is preferable to remove singleton dimensions. This simplifies some processing functions and checks (eg. in Matlab, you not only have to check whether mydata.dims.averages has a non-zero value, but you also have to check whether size of that dimension is greater than one).
@@ -70,6 +76,7 @@ Instead of keeping the Matlab approach with a minimum requirement for two dimens
 While it is possible to create an instance of the FID object with singleton dimenions, eg. mydata.fids.shape=[2048,1] and mydata.dims={'t':0,'averages':1}, this is not recommended and the singleton dimension may not be preserved through all processing steps. eg. When an array is sliced to return a single average like op_takaverages(myfid,4), the returned FID object has the averages dimension removed. You can use the op_squeeze(myfid) function to remove singleton dimensions.
 
 1.6 The dims attribute
+
 Quite a long explanation follows, but the short version is that you can get information about the dimensions of the fid (time, coils, averages, etc.) using dot notation in pyFidA in a way that looks similar to Matlab. eg. myfid.dims.t will return the index that corresponds to the time dimension in myfid.fids. However, the underlying class that stores the dimensional information and needs to be altered if the dimensions are changed is a list and semi-private attribute, myfid._dimlist. This information is made into the read-only property myfid.dims, which is a dictionary that allows items to be accessed via dot notation to replicate the Matlab form of the calls (so myfid.dims['t'] is equivalent to myfid.dims.t). Items that are not present will throw an error rather than returning -1 (Matlab returns 0 for missing dimensions but the equivalent of 0-indexed arrays in Python would be -1).
 
 I will explain a little about the underlying reason behind the different setup in pyFidA, then outline the details of how it works.
@@ -120,6 +127,7 @@ The dictionary is constructed such that it only contains items in the list. Dime
 A final note: when creating an instance of the FID object, the dimensional information should be input as a list, not a dict. In the \__init__ method of the FID object, you can see that the input argument is named dims but it is assigned to self.\_dimlist. Despite its somewhat confusing name, it is not assigned to the dims dict directly (because the dict is a read-only property) and so should not be entered in a dict format.
 
 1.7 The flags attribute and error/warning checks for processing functions
+
 As with dims, the flags attribute in pyFidA is basically a dict, although I have added functionality to use dot notation. So you can call either mydata.flags['averaged'] or mydata.flags.averaged. My code uses the dictionary notation and the dot notation functionality was only added in after-the-fact for other users more used to the Matlab fid-A notation.
 
 I have updated the flags in the processing functions in the same way as is done in Matlab, so that this information should remain updated in case others require this information. However, it appears that the flags are largely redundant with the dimensional information in many cases. eg. you can use mydata.flags['addedrcvrs'] to check if coil combination is complete before aligning averages. However, it is just as easy to check "if 'coils' not in mydata" because the lack of a coil dimension indicates that coils have already been combined (or that information wasn't present to start with) and it's okay to proceed with aligning averages.
@@ -127,9 +135,11 @@ I have updated the flags in the processing functions in the same way as is done 
 There are a few exceptions: mydata.flags['zeropadded'] is more easily checked with a flag rather than searching through the end of the time dimension of mydata.fids to try to see if all of the values are 0. And there is no easy way to check from the data whether it has been filtered or downsampled. However, these flag values are rarely if ever called and don't even seem to be consistently updated by all processing functions. In cases related to averaging, subspecs and coils, it is recommended to use the dimensional information rather than the flags for checks because there are more safeguards in place to ensure that it is being properly updated or not improperly overwritten, keeping it consistent with the data. 
 
 1.8 Convenience methods (adding and scaling spectra, selecting slices of the fid)
+
 Python classes allow dunder methods (double underscore methods, sometimes called magic methods) to make use of common operators that may be more intuitive. For example, the __add__ method can be used to describe what Python should do when the '+' operator is used with objects from your class. The FID class has several of these dunder methods, which can be used in place of fidA functions (the fidA_processing functions are still available for those familiar with them from Matlab).
 
 1.8.1 fid1 + fid2
+
 ```python
 newfid = fid1 + fid2
 
@@ -144,12 +154,15 @@ summed_fid=sum(list_of_fids, start=0*list_of_fids[0])
 ```
 
 1.8.2 fid1 - fid2
+
 fid1 - fid2 is the equivalent of op_addscans(fid1, fid2, 1) where the "1" argument indicates subtraction.
 
 1.8.3 fid1 + 3.5
+
 The assume intention here is that the scalar value is to be added as a DC offset in the spectral domain. That is, the above statement would be equivalent to op_dccorr(fid1,'v',-3.5) or, put another, it creates a fid object with a spectrum equal to fid1.specs+3.5. Likewise, fid1 - 3.5 would subtract 3.5 from every point in the frequency spectrum.
 
 1.8.4 2*fid1
+
 ```python
 newfid = 2*fid1
 
@@ -159,9 +172,11 @@ newfid = op_ampScale(2,fid1)
 The \__div__ method is also implemented so that you can use fid1/2 or 0.5\*fid1. The method is also implemented for elementwise multiplication of two fid objects - fid1\*fid2 - although there isn't a particular use case for this (it is more just for completeness).
 
 1.8.5 'coils' in fid1
+
 This uses the \__container__ method to check whether 'coils' is one of the dimensions in fid1._dimlist. Returns a boolean True/False answer. This method of checking whether dimensions are part of the fid is the main recommended method in pyFidA. The Matlab process of checking whether fid1.dims['coils']==-1 will not work because of changes in how the dims attribute is structured (explained above).
 
 1.8.6 slicing, eg. myfid[:,5:8]
+
 In Python, you can define a slicing operation using the \__getitem__ dunder method in order to return parts of that object. With arrays, this is used to select a subset of the data in that array. For the FID object, myfid[:,5:8] will return a new FID object where newfid.fids=myfid.fids[:,5:8]. In that particular example, newfid has the same number of dimensions as myfid because 5:8 means that the second dimension still exists but now has a size of 3.
 
 However, in the case where a slice is a single int, the default numpy slicing behaviour is to reduce the array size. So if array1.shape returns [2048,6] and array2=array1[:,0], then array2.shape returns [2048,]. Note that this is not the case for a slice that includes :, even if that slice only has size 1. That is, if array2=array1[:,:1] then array2.shape will return [2048,1]. This behaviour from numpy has been kept in the \__getitem__ function of the FID object . As a result, in the case of an int, myfid[:,5] will remove that dimension from myfid so that myfid.dims will just return {'t':0}. This is done automatically, and accounts for cases with multiple ints, eg. fid2[:,0,2] will return an object where fid2.ndim is 1 and fid2.dims is {'t':0}. This allows for consistency for users familiar with numpy slicing and it also seems to make the most sense since the point of picking out 1 slice is often to operate on it as its own object, without singleton dimensions (eg. for plotting).
