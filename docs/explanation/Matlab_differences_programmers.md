@@ -202,15 +202,13 @@ for avg_ct in range(myfid.sz[1]-10):
 
 Note that flags are *not* adjusted in the current slicing behaviour so, even if you eliminate the averages dimension by selecting the first average of 250, myfid.flags['averaged'] will still return False.
 
-Similarly, a \_\_setitem\_\_ dunder method is defined for uses like myfid[:,5:8]=myarray, which would be equivalent to myfid.fids[:,5:8]=myarray. This, of course, requires that myarray is the correct size to fit in this slice of myfid, or else an error will be thrown. The FID slice can be set using either a numpy array or another FID object. eg. if you want to want to phase just one subspec (and subsecs were the second dimension), you could run myfid[:,1]=pyFidA.op_addphase(myfid[:,1]). The op_addphase function returns a FID object, but \_\_setitem\_\_ will take the fids attribute from that returned object and assign it to myfid.fids[:,1].
+Similarly, a \_\_setitem\_\_ dunder method is defined for uses like myfid[:,5:8]=myarray, which would be equivalent to myfid.fids[:,5:8]=myarray. This, of course, requires that myarray is the correct size to fit in this slice of myfid, or else an error will be thrown. The FID slice can be set using either a numpy array or another FID object. eg. if you want to want to phase just one subspec (and subspecs were the second dimension), you could run myfid[:,1]=pyFidA.op_addphase(myfid[:,1],10). The op_addphase function returns a FID object, but \_\_setitem\_\_ will take the fids attribute from that returned object and assign it to myfid.fids[:,1].
 
 # The RF_pulse object
 I covered most of the stuff about interactive plotting and the time-w1 estimation in Matlab_differences_basic.md. Not sure if there's anything that needs to be added here.
 
-You could implement the add dunder method for RF pulses to replace something like rf_combineRF, but the use cases seem much more limited and less intuitive.
-
 # Peak-fitting functions
-
+Need to cover the curvefit_tools module for fitting multiple peaks and also reversing argument orders so that functions can match those in Matlab.
 
 # Return arguments
 (I think some of this is covered in basics so mostly you just want to reference that. But you can have some explanation of how programmers can add it to their own functions here).
