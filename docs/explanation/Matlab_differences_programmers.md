@@ -2,7 +2,7 @@
 This document explains the differences between pyFidA and Matlab fid-A that are likely to be of interest to those looking to extend the code or who need to understand what is going on "under the hood." If you will not be doing your own programming but are just looking to use pyFidA to load, process and simulate spectra, this document is likely more detailed than you need. The more relevant document for most users is [Differences between pyFidA and Matlab fid-A for basic users](Matlab_differences_basic.md) 
 
 In general, pyFidA aims to take advantage of Python features like classes and dunder methods in order to reduce the amount of code, remove unnecessary "extra" calculations in many processing functions and to make the code more generalizable. This should make it easier to add in functionality for non-proton nuclei, MRSI capabilities, processing for 2D and 3D NMR data with indirect dimensions, or other user-defined extensions. Some familiarity with Python and numpy is assumed when outlining the changes below.
-* [Basics](#fidobject)
+* [FID object](#fidobject)
 
 ## Using classes in place of structs
 Matlab uses a struct to hold data in the form of free induction decays and spectra. Various information about this data is contained in different fields of the struct. Similarly, RF pulses are loaded into a struct that contains various information about the pulse. In Python, these Matlab structs have become classes: FID and RF_pulse. There is also a Hamiltonian class used in the simulation module, although it is much smaller.
