@@ -161,7 +161,7 @@ fid1 - fid2 is the equivalent of op_addscans(fid1, fid2, 1) where the "1" argume
 
 The assumed intention here is that the scalar value is to be added as a DC offset in the spectral domain. That is, the above statement would be equivalent to op_dccorr(fid1,'v',-3.5). Put another way, it creates a fid object with a spectrum equal to fid1.specs+3.5. Likewise, fid1 - 3.5 would subtract 3.5 from every point in the frequency spectrum.
 
-1.8.4 2*fid1
+1.8.4 2\*fid1
 
 ```python
 newfid = 2*fid1
@@ -173,7 +173,7 @@ The \_\_div\_\_ method is also implemented so that you can use fid1/2 or 0.5\*fi
 
 1.8.5 'coils' in fid1
 
-This uses the \_\_container\_\_ method to check whether 'coils' is one of the dimensions in fid1._dimlist. Returns a boolean True/False answer. This method of checking whether dimensions are part of the fid is the main recommended method in pyFidA. The Matlab process of checking whether fid1.dims['coils']==-1 will not work because of changes in how the dims attribute is structured (explained above).
+This uses the \_\_container\_\_ method to check whether 'coils' is one of the dimensions in fid1.\_dimlist. Returns a boolean True/False answer. This method of checking whether dimensions are part of the fid is the main recommended method in pyFidA. The Matlab process of checking whether fid1.dims['coils']==-1 will not work because of changes in how the dims attribute is structured (explained above).
 
 1.8.6 slicing, eg. myfid[:,5:8]
 
@@ -208,7 +208,32 @@ Similarly, a \_\_setitem\_\_ dunder method is defined for uses like myfid[:,5:8]
 I covered most of the stuff about interactive plotting and the time-w1 estimation in Matlab_differences_basic.md. Not sure if there's anything that needs to be added here.
 
 # Peak-fitting functions
-Need to cover the curvefit_tools module for fitting multiple peaks and also reversing argument orders so that functions can match those in Matlab.
+Some differences are covered in the [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape). This section will cover how the translation from Matlab was implemented, for users who with to implement their own lineshape or fitting functions.
+
+## The curvefit_tools module for fitting argument order
+Matlab fid-A uses Matlab's nlinfit function for op_peakFit. Any lineshape function that is used with nlinfit (eg. op_lorentz) is expected to have two arguments, with the lineshape parameters coming before the x-values (frequencies):
+```matlab
+% In Matlab
+y=op_lorentz(pars,ppm)
+```
+
+The main equivalent to nlinfit in pyFidA is scipy.optimize.curve_fit, but this expects arguments in the opposite order, with x-values coming before parameters in the lineshape function:
+```python
+# in Python
+y=pyFidA.op_lorentz(ppm,pars)
+```
+
+While this is not important for users coming directly to pyFidA, it would mean that any users copying scripts from Matlab that contained lineshape function calls would need to swap the argument order. Instead, pyFidA has a curvefit_tool.py module with an nlinfit function that swaps the order of the arguments around before calling scipy.optimize.curvefit. This means that users can make use of lineshape functions that are ordered in the same way as Matlab (pars before ppm). If you are constructing your own lineshape functions to use with op_peakFit, they should follow this argument order. And, if you are constructing your own peak-fitting function that makes use of existing pyFidA lineshapes, you should import nlinfit from pyFidA.fidA_processing.curvefit_tools.py and use this as the fitting function.
+
+## The curvefit_tools module for fitting multiple peaks
+As described in [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape), op_peakFit can fit multiple peaks with a given lineshape by entering vectors (1D numpy arrays or lists) for the amplitudes, linewidths and center frequencies of each peak. Each element in a vector will represent one peak. Because scipy.optimize.curvefit requires all parameters to be entered individually (ie. pars is one flat array where each element is a scalar), this functionality is also contained within the curvefit_tools module.
+
+The documentation in the module contains the full details. A summary is that, when nlinfit is called, it first takes the lineshape function (eg. op_lorentz) and parameter list that are entered, and it creates three new functions. The first is a new version of the lineshape function that can accept a flattened list of input parameters. The second is a function that can reformat the original parameter list, where some elements are vectors that represent multiple peaks, into a flat list. This new lineshape function and flat list are the ones sent to scipy.optimize.curve_fit to obtain the fit parameters and the new lineshape function is able to reshape the flat list into the format accepted by the original lineshape function (eg. op_lorentz), which is then called. The resulting fit parameters are then reshaped back into the original shape, with vectors representing the amplitudes/linewidths/centre frequencies for multiple peaks, by the third function that is constructed form the original lineshape function and parameter list. These second and third functions are also used to reshape any parameter bounds that are specified, meaning that the bounds should be entered by the user in the same format as the initial parameter guess (with vectors specifying multiple peaks); bounds are optional.
+
+This means that you can create your own lineshape functions that work with multiple peaks simply by using the nlinfit function from the pyFidA.fidA_processing.curvefit_tools.py module. The amplitudes, etc. for each peak just need to be entered as lists or numpy arrays and nlinfit will flatten them before calling the fitting function, then re-format the flattened list back to its original format, with any lists or numpy arrays contained within it. This assumes, of course, that you have constructed your lineshape function to deal with these vectors appropriately. See op_lorentz_linbas for an example.
+
+## Minor changes in peak-fitting functions to avoid repeated code
+Where possible, pyFidA functions are wrappers to avoid repeating code and so that changes can be more easily implemented in one place. For example, op_creFit is a wrapper of op_peakFit with certain initial parameter guesses and constraints. The op_lorentz function is a wrapper of op_lorentz_linbas with the slope value fixed to 0. And so on.
 
 # Return arguments
 (I think some of this is covered in basics so mostly you just want to reference that. But you can have some explanation of how programmers can add it to their own functions here).
