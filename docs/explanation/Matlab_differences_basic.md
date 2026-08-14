@@ -201,10 +201,10 @@ initGuess=[[1,1,1], [5,5,5], [3,4,5], 0]
 lb=[[0,0,0], [0.1,0.1,0.1], [2,3,4], -10]
 ub=[[10,10,10],[25,25,25],[4,5,6],10]
 par_bounds=(lb, ub)
-outdat, parsFit, resids=pyFidA.op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz2',parameter_bounds=par_bounds)
+outdat, parsFit, resids=pyFidA.op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=initGuess,peaktype='lorentz2',parameter_bounds=par_bounds)
 ```
 
-It is also possible to construct your own lineshape functions for use with op_peakFit, as long as they have two input arguments in the form [pars,xvals] but these will not generate a "smart" initial parsGuess (it will assign every parameter an initial guess of 1) if none is entered as an input argument. In addition the default parameter bounds from parameter_bounds=True cannot be generated since nothing is known about the expected parameters. For more, see [the lineshape section in Matlab Differences for Programmers]((./Matlab_differences_programmers.md#lineshape)).
+It is also possible to construct your own lineshape functions for use with op_peakFit, as long as they have two input arguments in the form [pars,xvals] but these will not generate a "smart" initial parsGuess (it will assign every parameter an initial guess of 1) if none is entered as an input argument. In addition the default parameter bounds from parameter_bounds=True cannot be generated since nothing is known about the function's expected parameters. These defaults can be added to op_peakFit, see [the lineshape section in Matlab Differences for Programmers](./Matlab_differences_programmers.md#lineshape).
 
 ### Convenience functions for basic math on spectra
 pyFidA has implemented special methods that allow you to use some math operators in intuitive ways. Functions with the names from Matlab's fid-A like op_addScans, etc. are still available in pyFidA for users familiar with those.
