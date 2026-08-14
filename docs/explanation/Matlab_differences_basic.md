@@ -199,7 +199,7 @@ In Matlab, op_peakFit does not include bounds on the fit parameters as a possibl
 ```python
 initGuess=[[1,1,1], [5,5,5], [3,4,5], 0]
 lb=[[0,0,0], [0.1,0.1,0.1], [2,3,4], -10]
-ub=[[10,10,10],[25,25,25],[4,5,6],10]
+ub=[[10,10,10], [25,25,25], [4,5,6], 10]
 par_bounds=(lb, ub)
 outdat, parsFit, resids=pyFidA.op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=initGuess,peaktype='lorentz2',parameter_bounds=par_bounds)
 ```

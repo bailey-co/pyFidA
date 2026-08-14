@@ -208,22 +208,29 @@ Similarly, a \_\_setitem\_\_ dunder method is defined for uses like myfid[:,5:8]
 I covered most of the stuff about interactive plotting and the time-w1 estimation in Matlab_differences_basic.md. Not sure if there's anything that needs to be added here.
 
 # Peak-fitting functions
-Some differences are covered in the [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape). This section will cover how the translation from Matlab was implemented, for users who with to implement their own lineshape or fitting functions.
+Some differences are covered in the [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape). This section will cover how the translation from Matlab was implemented, for users who wantto implement their own lineshape or fitting functions.
 
 ## The curvefit_tools module for fitting argument order
 Matlab fid-A uses Matlab's nlinfit function for op_peakFit. Any lineshape function that is used with nlinfit (eg. op_lorentz) is expected to have two arguments, with the lineshape parameters entered as one array, followed by the x-values (frequencies in ppm for fid-A):
 ```matlab
 % In Matlab
 y=op_lorentz(pars,ppm)
+
+% can be fit by
+parsFit=nlinfit(ppm,real(spec'),@op_voigt_linbas_real_nest,parsGuess)
 ```
 
-The main equivalent to nlinfit in pyFidA is scipy.optimize.curve_fit, but this expects arguments in a different format. Firstly, the x-values are the first argument. Secondly, the parameters, which follow the x-values are not entered as a single list, but instead are separate arguments defining the amplitude, linewidth, etc.:
+One equivalent to nlinfit in Python is scipy.optimize.curve_fit, but this expects arguments in a different format. Firstly, the x-values are the first argument. Secondly, the parameters, which follow the x-values, are not entered as a single list, but rather as separate arguments:
 ```python
 # in Python
 y=pyFidA.op_lorentz(ppm,par1,par2,par3)
+
+# can be fit by
+parsList=[par1_guess, par2_guess, par3_guess]
+parsFit, pcov=scipy.optimize.curve_fit(op_voigt_linbas_real, ppm, real(spec), parsList)
 ```
 
-While this is not necessarily important for users coming directly to pyFidA, it would mean that any users copying scripts from Matlab that contained lineshape function calls would need to swap the argument order and then need to pass each element of pars separately to the function.
+While this is not necessarily important for users coming directly to pyFidA, it would mean that any users copying scripts from Matlab that contained lineshape function calls like op_lorentz(pars,ppm) would need to alter the input arguments in each of these calls to match the scipy.optimize.curve_fit's formatting if this were used directly as the fitting function in op_peakFit.
 
 Instead, pyFidA has a curvefit_tool.py module with an nlinfit function that swaps the order of the arguments around and unpacks the pars parameter list using the \* notation for lists before calling scipy.optimize.curvefit. This means that users can make use of lineshape functions that are constructed or called in the same way as Matlab (pars before ppm). If you are constructing your own lineshape functions to use with op_peakFit, they should follow this argument order. And, if you are constructing your own peak-fitting function that makes use of existing pyFidA lineshapes, you should import nlinfit from pyFidA.fidA_processing.curvefit_tools.py and use this as the fitting function.
 
