@@ -181,6 +181,7 @@ There is a check in the code that throws a warning if the value looks like it ma
 
 One issue with this difference is that users might want to take the output parameter parsFit from op_peakFit and feed it into a lineshape function (this value is returned from op_peakFit as outdat for the exact values in parsFit but there may be cases where users wish to generate a line to represent an error of 10% in a parameter or where the user wishes to see what a Gaussian with similar parameters to the Lorentzian might look like). In this case, the user cannot send the usual parsFit value from the peak-fitting function (in Hz) to the lineshape function (which requires an input in ppm). For this, users can run op_peakFit with the input argument returns_pars_in_Hz=False. Then parsFit will have FWHM values in ppm, which can be sent to the lineshape function.
 
+<a name="lineshape2"></a>
 ### More flexibility in lineshape functions for fitting: multiple peaks, baselines, more lineshapes
 The op_lorentz function in Matlab appears to be set up to accept a two-dimensional pars object, with the intention of constructing multiple peaks from each row in pars, and then summing along the rows to create the final spectrum. While this works for obtaining a simulated spectrum from a particular set of parameters, it creates instability when using the function for fitting because each peak has its own baseline parameters and phasing.
 

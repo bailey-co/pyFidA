@@ -12,6 +12,7 @@ from scipy.special import voigt_profile
 from .curvefit_tools import nlinfit
 from .op_common_processing import add_phase, op_addphase,freqrange,op_freqrange
 from pyFidA.fidA_common import FidAException
+import warnings
 
 def op_creFit(indat,ph0=0,ph1=0,ppmmin=2.9,ppmmax=3.15,peaktype='lorentz',parameter_bounds=False,disp_result='partial'):
     """
@@ -548,8 +549,12 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         if parsGuess is None:
             # amp,fwhm_gauss,fwhm_lor,ppm0,base_slope,base_off,ph0
             parsGuess=[np.amax(np.abs(specs)),default_FWHM,default_FWHM,ppm[np.argmax(specs)]]+[0]*3
+    elif callable(peaktype):
+        fitfunc=peaktype
+        parsGuess=[1]*peaktype.__code__.co_argcount
+        FWHMpars=[]
     else:
-        raise ValueError("Variable peaktype must be either 'lorentz','gauss' or 'voigt'.")
+        raise ValueError("Variable peaktype must be either 'lorentz','lorentz2','gauss', 'voigt' or callable function.")
     # Set the default parameter bounds if parameter_bounds=True or set to -inf 
     # to +inf if parameter_bounds=False. Otherwise use parameter_bounds values entered.
     if type(parameter_bounds) is bool:
@@ -558,21 +563,24 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         ub=[np.inf]*len(parsGuess)
         # Now set some parameters to more limited range for single peak if parameter_bounds=True
         if parameter_bounds:
-            fwhm_max=0.7*(indat.txfreq/1e6)
-            if peaktype=='voigt':
-                lb[:minpars]=[0,1e-4,1e-4,ppmmin]
-                ub[:minpars]=[2*np.amax(np.abs(indat.specs)),fwhm_max,fwhm_max,ppmmax]
+            if callable(peaktype):
+                warnings.warn("WARNING: Cannot construct parameter bounds for user-defined lineshape function. Enter paramter_bounds explicitly if needed. Using infinite bounds.")
             else:
-                lb[:minpars]=[0,1e-4,ppmmin]
-                ub[:minpars]=[2*np.amax(np.abs(indat.specs)),fwhm_max,ppmmax]
-            if len(parsGuess)==minpars+3:
-                lb[-1]=-np.pi
-                ub[-1]=np.pi
+                fwhm_max=0.7*(indat.txfreq/1e6)
+                if peaktype=='voigt':
+                    lb[:minpars]=[0,1e-4,1e-4,ppmmin]
+                    ub[:minpars]=[2*np.amax(np.abs(indat.specs)),fwhm_max,fwhm_max,ppmmax]
+                else:
+                    lb[:minpars]=[0,1e-4,ppmmin]
+                    ub[:minpars]=[2*np.amax(np.abs(indat.specs)),fwhm_max,ppmmax]
+                if len(parsGuess)==minpars+3:
+                    lb[-1]=-np.pi
+                    ub[-1]=np.pi
         # Now check if multi-peak case (first parameter is iterable type - list or numpy array) and expand the bounds for those if so
-        if hasattr(parsGuess[0],'__iter__'):
-            for parnum in range(minpars):
-                lb[parnum]=[lb[parnum]]*len(parsGuess[parnum])
-                ub[parnum]=[ub[parnum]]*len(parsGuess[parnum])
+        for parnum,eachpar in enumerate(parsGuess):
+            if hasattr(eachpar,'__iter__'):
+                lb[parnum]=[lb[parnum]]*len(eachpar)
+                ub[parnum]=[ub[parnum]]*len(eachpar)
         parameter_bounds=(lb,ub)
     # Convert fwhm in Hz to ppm for both parsGuess and parameter_bounds before sending for fitting to lineshape function
     parsGuess=Hz_to_ppm(parsGuess, whichvars=FWHMpars,send_warning=True)
