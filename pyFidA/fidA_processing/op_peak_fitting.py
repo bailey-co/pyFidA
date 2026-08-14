@@ -374,13 +374,17 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         to fit without phase or baseline parameters, you will need to enter
         a value for parsGuess with guesses for any optional parameters that you
         want.
-    peaktype : str. optional
+    peaktype : str or function. optional
         The function that defines the lineshape used to generate the y-values 
-        for fitting. Implemented options are:
+        for fitting. Implemented string options are:
             'lorentz': op_lorentz_linbas
+            'lorentz2': op_lorentz
             'gauss': op_gauss_linbas
             'voigt': op_voigt_linbas
-        The default is 'lorentz'.
+        Users can also provide a function name directly provided that its inputs
+        are of the form [pars, ppm], although features like automatically generating
+        parameter_bounds and converting linewidths from Hz to ppm will not be
+        available. The default is 'lorentz'.
     parameter_bounds : boolean or list, numpy array or scipy's Bounds type, optional
         Describes how to deal with the bounds on the parameters. Options are:
             True - default values are defined based on certain assumptions eg.
