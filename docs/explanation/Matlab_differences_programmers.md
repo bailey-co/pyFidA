@@ -211,19 +211,21 @@ I covered most of the stuff about interactive plotting and the time-w1 estimatio
 Some differences are covered in the [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape). This section will cover how the translation from Matlab was implemented, for users who with to implement their own lineshape or fitting functions.
 
 ## The curvefit_tools module for fitting argument order
-Matlab fid-A uses Matlab's nlinfit function for op_peakFit. Any lineshape function that is used with nlinfit (eg. op_lorentz) is expected to have two arguments, with the lineshape parameters coming before the x-values (frequencies):
+Matlab fid-A uses Matlab's nlinfit function for op_peakFit. Any lineshape function that is used with nlinfit (eg. op_lorentz) is expected to have two arguments, with the lineshape parameters entered as one array, followed by the x-values (frequencies in ppm for fid-A):
 ```matlab
 % In Matlab
 y=op_lorentz(pars,ppm)
 ```
 
-The main equivalent to nlinfit in pyFidA is scipy.optimize.curve_fit, but this expects arguments in the opposite order, with x-values coming before parameters in the lineshape function:
+The main equivalent to nlinfit in pyFidA is scipy.optimize.curve_fit, but this expects arguments in a different format. Firstly, the x-values are the first argument. Secondly, the parameters, which follow the x-values are not entered as a single list, but instead are separate arguments defining the amplitude, linewidth, etc.:
 ```python
 # in Python
-y=pyFidA.op_lorentz(ppm,pars)
+y=pyFidA.op_lorentz(ppm,par1,par2,par3)
 ```
 
-While this is not important for users coming directly to pyFidA, it would mean that any users copying scripts from Matlab that contained lineshape function calls would need to swap the argument order. Instead, pyFidA has a curvefit_tool.py module with an nlinfit function that swaps the order of the arguments around before calling scipy.optimize.curvefit. This means that users can make use of lineshape functions that are ordered in the same way as Matlab (pars before ppm). If you are constructing your own lineshape functions to use with op_peakFit, they should follow this argument order. And, if you are constructing your own peak-fitting function that makes use of existing pyFidA lineshapes, you should import nlinfit from pyFidA.fidA_processing.curvefit_tools.py and use this as the fitting function.
+While this is not necessarily important for users coming directly to pyFidA, it would mean that any users copying scripts from Matlab that contained lineshape function calls would need to swap the argument order and then need to pass each element of pars separately to the function.
+
+Instead, pyFidA has a curvefit_tool.py module with an nlinfit function that swaps the order of the arguments around and unpacks the pars parameter list using the \* notation for lists before calling scipy.optimize.curvefit. This means that users can make use of lineshape functions that are constructed or called in the same way as Matlab (pars before ppm). If you are constructing your own lineshape functions to use with op_peakFit, they should follow this argument order. And, if you are constructing your own peak-fitting function that makes use of existing pyFidA lineshapes, you should import nlinfit from pyFidA.fidA_processing.curvefit_tools.py and use this as the fitting function.
 
 ## The curvefit_tools module for fitting multiple peaks
 As described in [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape2), op_peakFit can fit multiple peaks with a given lineshape by entering vectors (1D numpy arrays or lists) for the amplitudes, linewidths and center frequencies of each peak. Each element in a vector will represent one peak. Because scipy.optimize.curvefit requires all parameters to be entered individually (ie. pars is one flat array where each element is a scalar), this functionality is also contained within the curvefit_tools module.
