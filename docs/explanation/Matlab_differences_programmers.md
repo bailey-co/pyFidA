@@ -77,7 +77,7 @@ While it is possible to create an instance of the FID object with singleton dime
 
 ### 1.6 The dims attribute
 
-Quite a long explanation follows, but the short version is that you can get information about the dimensions of the fid (time, coils, averages, etc.) using dot notation in pyFidA in a way that looks similar to Matlab. eg. myfid.dims.t will return the index that corresponds to the time dimension in myfid.fids. However, the underlying class that stores the dimensional information and needs to be altered if the dimensions are changed is a list and semi-private attribute, myfid._dimlist. This information is made into the read-only property myfid.dims, which is a dictionary that allows items to be accessed via dot notation to replicate the Matlab form of the calls (so myfid.dims['t'] is equivalent to myfid.dims.t). Items that are not present will throw an error rather than returning -1 (Matlab returns 0 for missing dimensions but the equivalent for 0-indexed arrays in Python would be -1).
+Quite a long explanation follows, but the short version is that you can get information about the dimensions of the fid (time, coils, averages, etc.) using dot notation in pyFidA in a way that looks similar to Matlab. eg. myfid.dims.t will return the index that corresponds to the time dimension in myfid.fids. However, the underlying class that stores the dimensional information and needs to be altered if the dimensions are changed is a list and semi-private attribute, myfid.\_dimlist. This information is made into the read-only property myfid.dims, which is a dictionary that allows items to be accessed via dot notation to replicate the Matlab form of the calls (so myfid.dims['t'] is equivalent to myfid.dims.t). Items that are not present will throw an error rather than returning -1 (Matlab returns 0 for missing dimensions but the equivalent for 0-indexed arrays in Python would be -1).
 
 I will explain a little about the underlying reason behind the different setup in pyFidA, then outline the details of how it works, but the main takeaway is given in the paragraph above.
 
@@ -204,11 +204,36 @@ Note that flags are *not* adjusted in the current slicing behaviour so, even if 
 
 Similarly, a \_\_setitem\_\_ dunder method is defined for uses like myfid[:,5:8]=myarray, which would be equivalent to myfid.fids[:,5:8]=myarray. This, of course, requires that myarray is the correct size to fit in this slice of myfid, or else an error will be thrown. The FID slice can be set using either a numpy array or another FID object. eg. if you want to want to phase just one subspec (and subspecs were the second dimension), you could run myfid[:,1]=pyFidA.op_addphase(myfid[:,1],10). The op_addphase function returns a FID object, but \_\_setitem\_\_ will take the fids attribute from that returned object and assign it to myfid.fids[:,1].
 
-# The RF_pulse object
-I covered most of the stuff about interactive plotting and the time-w1 estimation in Matlab_differences_basic.md. Not sure if there's anything that needs to be added here.
+## The RF_pulse object
+As with the FID class, using a class, RF_pulse, in pyFidA to replace Matlab's struct for rf pulses allows for some simplifications.
+
+### Read-only properties
+Certain attributes can reference functions rather than being re-calculated every time that a function operates on an RF pulse. Some of these may be relatively obvious:
+* isGM : checks whether the rf waveform has a (non-zero) gradient waveform
+* isPhsMod : checks whether the phase values in the waveform are all 0 or 180
+* rfCentre : calculates where the peak amplitude of the waveform occurs
+* waveform : returns a copy of the values stored in RF_pulse.\_waveform. The waveform is intended to be read-only so that it is only altered by calls to functions in pyFidA.fidA_rf.
+
+There are also several properties that exist for convenience in pyFidA that are not present in Matlab:
+* isAdiabatic : checks whether the Mz values between w1max and 1.5\*w1max are within 10%. Can be overwritten by the user in cases where the adiabatic nature of the pulse if known. Useful for functions that treat adiabatic pulses differently
+* w1max : the rf power needed to achieve the flip angle in pulse_type for the pulse duration in \_Tp
+* bw : the full width at half max for the pulse duration in \_Tp and the power w1max
+* f0 : the centre frequency of the rf pulse. Initially, this is the user-provided value entered when the pulse is created OR estimated iteratively by setting f0=None as an input argument to RF\_pulse.\_\_init\_\_. However, it can change during functions like rf_freqshift. rf_Dual-band pulses are not fully handled by pyFidA yet but this should return the f0 value of the first band in those cases (more below).
+
+### Waveform checks
+When a new RF_pulse instance is created, a number of checks and adjustments are run on the rf waveform that is entered as an input argument. These include:
+* adjusting the phase for phase discontinuities
+* normalizing the amplitude so that the maximum value is 1
+* creating a time step column for the waveform if one is not entered, and ensuring the timestep values are positive integers.
+
+In Matlab, these are first handled in io_loadRFwaveform before creating the struct. However, there are also some rf pulse functions where these adjustments are needed before creating the struct (rf_combineRF re-normalizes the amplitude to the new maximum; rf_verse checks for phase jumps). These checks may still be written into the code in some cases but these checks are no longer needed in rf pulse functions where a new RF_pulse object is being created. They have been removed from io_loadRFwaveform in pyFidA because they are performed in RF\_pulse.\_\_init\_\_. 
+
+### Creating your own rfPulseTools functions (when to use iscopy=True)
+
+### Off-resonance pulses (and f0 for dual-band pulses)
 
 # Peak-fitting functions
-Some differences are covered in the [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape). This section will cover how the translation from Matlab was implemented, for users who wantto implement their own lineshape or fitting functions.
+Some differences are covered in the [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape). This section will cover how the translation from Matlab was implemented, for users who want to implement their own lineshape or fitting functions.
 
 ## The curvefit_tools module for fitting argument order
 Matlab fid-A uses Matlab's nlinfit function for op_peakFit. Any lineshape function that is used with nlinfit (eg. op_lorentz) is expected to have two arguments, with the lineshape parameters entered as one array, followed by the x-values (frequencies in ppm for fid-A):
@@ -256,11 +281,20 @@ You may also wish to update the default bounds that will be assigned when parame
 Where possible, pyFidA functions are wrappers to avoid repeating code and so that changes can be more easily implemented in one place. For example, op_creFit is a wrapper of op_peakFit with certain initial parameter guesses and constraints. The op_lorentz function is a wrapper of op_lorentz_linbas with the slope value fixed to 0. And so on.
 
 # Return arguments
-(I think some of this is covered in basics so mostly you just want to reference that. But you can have some explanation of how programmers can add it to their own functions here).
+As explained in [Matlab Differences for Basic Users](Matlab_differences_basic.md#returnargs), Python is unable to alter the number of arguments returned based on the user call. In pyFidA, the choice to return the first argument versus all arguments for selected processing functions is done with the @alter_return_args decorator.
 
-For return args: Users familiar with Python programming can add this functionality to their own functions by importing and applying the @alter_return_args decorator to their function and then adding a variable with default "None" to the end of the input arguments. The exact name of the input argument does not matter (by convention, I have used "return_extra_args") but it MUST be the last argument. The remainder of the function is the same and the function should return all output arguments in this part of the code (it is the decorator that decides how many are returned to the user). Also note that the default value of the last input argument should be None. This is what allows its default behaviour to be "set" by allow_chaining()
-eg.
+Users can add add this functionality to their own functions by importing the @alter_return_args decorator from pyFidA.fidA_processing.alter_return_args.py and applying it to their function. For this decorator to work properly with the allow_chaining() and stop_chaining() calls, the user-defined function must have a final input argument with default value "None". This argument is named "return_extra_args" by convention, but any name will work; the only requirement is that the argument be the final input argument. The remainder of the function does not need to change and it should return all output arguments in the user-constructed part of the code. It is the decorator that decides how many are returned to the user based on the input argument value or the global ReturnBehaviour status in the case where return_extra_args=None.
+```python
 @alter_return_args
-def my_func(input1,input2,input3=0,return_extra_args=None)
+def my_func(input1,input2,input3=0,return_extra_args=None):
+    # Whatever code you had here is unchanged
+    if input3==0:
+        aval=1
+    else:
+        aval=input3
+    bval=input1+input2
+    # Return all output arguments. The decorator will deal with the number of arguments to return
+    return aval, bval
+```
 
-Possible that Return Behaviour should just be defined in processing rather than in the common module, although I can see the case for implementing similar behaviour in fidA_sim if it's relevant.
+Note that the allow_chaining and stop_chaining functions, as well as the class instance holding the default return behaviour, are also in pyFidA.fidA_processing.alter_return_args.py. If you import the entire pyFidA package when making use of your decorated function, these functions and the default will be available. However, if you have imported only a sub-package, like fidA_sim, you may need to import the fidA_processing sub-package in order to access these other functions.

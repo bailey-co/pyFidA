@@ -223,6 +223,10 @@ class RF_pulse(object):
 
         """
         return self._gamma
+    @gamma.setter
+    def gamma(self,new_gamma):
+        # new_gamma in MHz/T
+        self._gamma=new_gamma
     @property
     def waveform(self):
         return self._waveform.copy()

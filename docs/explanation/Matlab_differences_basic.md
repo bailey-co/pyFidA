@@ -30,6 +30,7 @@ However, for the remainder of this section, I will show examples that would foll
 ### Avoiding "in" as a variable name
 Some Matlab functions use "in" as the name of an input argument and it is possible that some users copied this and used "in" as a variable name in their own code. In Python, "in" is a protected word and attempting to assign something to it will throw an error. If you see a SyntaxError or other error on a line with a variable named "in", change the variable name.
 
+<a name="returnargs"></a>
 ### Behaviour of functions that return multiple output arguments
 The largest difference is in how Python and Matlab handle functions with multiple return arguments . In Matlab, it is possible for a function to return a different number of output arguments based on how it is called:
 ```matlab
@@ -236,10 +237,27 @@ In Matlab, sim_onepulse is an excitation around the 'x' axis. sim_one_pulse_arbP
 <a name="rf"></a>
 ## RF Pulses
 
+### New functions
+* get_ampint
+
 ### Estimation of time-w1 product
 The estimation of the time-w1 product related to the desired flip angle works slightly differently than in Matlab for pulses that are not phase-modulated. In Matlab, Bloch simulations are run at a range of B1 power values to determine the magnetization at the end of the RF pulse. The longitudinal magnetization, Mz, is then plotted versus the corresponding B1 values and the user is asked to input the power corresponding to the flip angle that they want based on this visualization.
 
 In Python, figures do not always display mid-function and not all setups can easily accept user input; it depends on the matplotlib backend. For example, standard Jupyter notebook setups run a cell at a time without stopping for user input, or some qt backends use inline plotting or figures that don't display until the current code finishes running. This means that not all users will be able to see the output in order to enter a B1 power. While it is possible to require users to work with certain backends or more interactive gui setups could be designed with other Python modules, this adds to the user requirements for a basic installation. Instead, pyFidA attempts to estimate the first Mz point that most closely corresponds to the desired flip angle (eg. the w1 value where Mz crosses 0 for a 90 degree pulse) and then outputs the plot of w1 versus Mz so that the user can double-check it (assuming the suppress_plots=False in the call to create a new instance of the RF_pulse object, the default). Users can still alter the w1 after seeing the plot with my_rf_pulse.w1=neww1.
+
+### Loading off-resonance RF pulses
+Loading and manipulating off-resonance RF pulses in Matlab was not completed when this Python code was written. However, the code that was completed for loading these waveforms required users to specify that the waveform was off-resonance, and the code would then attempt to find the frequency offset and shift the waveform back on-resonance to calculate the time-w1max and time-bandwidth products. It appears that the intention was then to shift the waveform back off-resonance before saving the waveform in the RF_pulse structure in Matlab. However, this was not completed and so all off-resonance pulses that are loaded into Matlab are shifted back on-resonance upon loading (they can be shifted back off-resonace using rf_freqshift if the off-resonance frequency is known).
+
+In pyFidA, a different approach is taken. By default, it is assumed that the pulse is on-resonance (f0=0) and the time-w1max and time-bandwidth products are calculated for this frequency. Alternatively, the user can provide a frequency offset in the input argument f0 if this value is known. The waveform in the file is then loaded and stored as-is in the RF_pulse object (ie. the off-resonance waveform is stored). The time-w1max and time-bandwidth products are calculated for this waveform at the indicated frequency value. A warning is thrown if this value appears to be incorrect (the desired flip angle cannot be achieved within a reasonable w1 range or the bandwidth cannot be calculated); a warning is also thrown in the f0=0 case if that appears to be incorrect.
+
+If the f0 value is not known, or the user is not sure whether the pulse stored in the file is off-resonance or not, the user can load the RF_pulse object with f0=None. This tells Python to try to find the offset frequency and to calculate tw1 and tbw at that frequency. Because this is done via a loop through w1 values across a range of frequencies, each of which involves Bloch simulations of the pulse, it can take a long time to run, which is why it is not the default, but is an option for pulses where the resonance frequency is unknown.
+
+In addition, not all functions in the Matlab RF toolbox were designed to work for gradient-modulated or off-resonance pulses, and several functions assume that the waveform has even timesteps without checking that this is the case. I have attempted to provide functionality for these cases in pyFidA, or to run a check and throw an error when a function cannot be implemented for a particular type of RF pulse.
+
+### Pulses include gamma (default for 1H)
+In an attempt to future-proof the RF pulse object for multi-nuclear cases, there is a gamma input argument. This defaults to the value in GAMMA_DICT['1H'] in pyFidA.fidA_common.constants.py. This value is only needed in cases where gradients are applied (either for gradient-modulated pulses or for fidA_sim functions that accept gradients), in order to calculate dephasing for the gradient strength at each time point.
+
+The nucleus to obtain a value for gamma can be added as an input argument for io_loadRFwaveform. However, if the gamma value for the nucleus of interest is not in GAMMA_DICT in pyFidA.fidA_common.constants.py, it will need to be added there. Alternatively, the user can specify gamma for the rf pulse after loading the waveform but, for gradient-modulated waveforms, the tw1 and tbw products will need to be re-calculated, and there may be a warning about the f0 estimation for off-resonance pulses.
 
 ### More properties available
 TBC
@@ -251,11 +269,3 @@ Not sure whether it should be noted here or elsewhere, but Matlab uses "type" as
 ### Plotting pulses
 More info about the vectors generated/stored and plotting functions.
 
-### Loading off-resonance RF pulses
-Loading and manipulating off-resonance RF pulses in Matlab was not completed when this Python code was written. However, the code that was completed for loading these waveforms required users to specify that the waveform was off-resonance, and the code would then attempt to find the frequency offset and shift the waveform back on-resonance to calculate the time-w1max and time-bandwidth products. It appears that the intention was then to shift the waveform back off-resonance before saving the waveform in the RF_pulse structure in Matlab. However, this was not completed and so all off-resonance pulses that are loaded into Matlab are shifted back on-resonance upon loading (they can be shifted back off-resonace using rf_freqshift if the off-resonance frequency is known).
-
-In pyFidA, a different approach is taken. By default, it is assumed that the pulse is on-resonance (f0=0) and the time-w1max and time-bandwidth products are calculated for this frequency. Alternatively, the user can provide a frequency offset in the input argument f0 if this value is known. The waveform in the file is then loaded and stored as-is in the RF_pulse object (ie. the off-resonance waveform is stored). The time-w1max and time-bandwidth products are calculated for this waveform at the indicated frequency value. A warning is thrown if this value appears to be incorrect (the desired flip angle cannot be achieved within a reasonable w1 range or the bandwidth cannot be calculated); a warning is also thrown in the f0=0 case if that appears to be incorrect.
-
-If the f0 value is not known, or the user is not sure whether the pulse stored in the file is off-resonance or not, the user can load the RF_pulse object with f0=None. This tells Python to try to find the offset frequency and to calculate tw1 and tbw at that frequency. Because this is done via a loop through w1 values across a range of frequencies, each of which involves Bloch simulations of the pulse, it can take a long time to run, which is why it is not the default, but is an option for pulses where the resonance frequency is unknown.
-
-In addition, not all functions in the Matlab RF toolbox were designed to work for gradient-modulated or off-resonance pulses, and several functions assume that the waveform has even timesteps without checking that this is the case. I have attempted to provide functionality for these cases in pyFidA, or to run a check and throw an error when a function cannot be implemented for a particular type of RF pulse.
