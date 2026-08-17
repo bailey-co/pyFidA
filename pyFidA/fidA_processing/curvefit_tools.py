@@ -78,6 +78,43 @@ def alter_func_args(funcnm,real_nest=False):
         return yvals
     return wrapper
 
+def real_wrapper(funcnm,parlist):
+    # Not using this yet because I think there are still issues. And, arguably,
+    # you could just leave it as-is, taking the real part and only fitting the
+    # real part of the baseline functions, because this mimics Matlab
+    
+    # Note that parlist has to be flat here, so you want to run it after make_flattening_functions
+    # But then run before alter_func_args so that parlist is a list (not unpacked)
+    newparlist=list()
+    complex_var_list=list()
+    for eachpar in parlist:
+        if np.iscomplex(eachpar):
+            complex_var_list=True
+            newparlist.append(np.real(eachpar))
+            newparlist.append(np.imag(eachpar))
+        else:
+            complex_var_list=False
+            newparlist.append(eachpar)
+            
+    # Note that you still have to reshape y-values
+    @functools.wraps(funcnm)
+    def real_fitting_func(real_parlist,xdata):
+        y_complex=funcnm(real_parlist,xdata)
+        return np.concatenate(np.real(y_complex),np.imag(y_complex))
+    
+    def remake_complex_fitpars(real_fit_pars):
+        complex_fit_pars=list()
+        itct=0
+        for complex_flag in complex_var_list:
+            if complex_flag:
+                complex_fit_pars.append(real_fit_pars[itct]+1j*real_fit_pars[itct+1])
+                itct=itct+2
+            else:
+                complex_fit_pars.append(real_fit_pars[itct])
+                itct=itct+1
+        return complex_fit_pars
+    return real_fitting_func, newparlist, remake_complex_fitpars
+
 def make_flattening_functions(multipeak_func,parlist_shaped):
     """
     flattened_func,flatten_vars,shape_vars=make_flattening_functions(multipeak_func,parlist_shaped)
@@ -255,6 +292,9 @@ def nlinfit(xdata,ydata,funcnm,parlist_of_lists,real_nest=False,**kwargs):
 
     """
     flattened_func,flatten_vars,shape_vars=make_flattening_functions(funcnm,parlist_of_lists)
+    # For each parameter in parlist of lists, if it's scalar AND complex-valued,
+    # split it into two parameters and make a new function that accepts the new
+    # parameter list
     if real_nest:
         if not any(np.iscomplex(ydata)):
             warnings.warn('WARNING: nlinfit called with real_nest=True but ydata appear to be real. Proceeding anyway.',FidAWarning)
