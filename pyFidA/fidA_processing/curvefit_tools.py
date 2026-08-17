@@ -32,22 +32,25 @@ of them to be entered as args. Also the Jacobian is not tested at all.)
 
 eg.
 ppmvec=np.linspace(11.3,-2,2048)
-multi_parvec=[[1.5,2],[0.5,0.2],[2,6],0,0.1]
-multi_lorentz_peak=np.real(op_lorentz_linbas(multi_parvec, ppmvec)+0.02*np.random.randn(len(ppmvec))+1j*0.02*np.random.randn(len(ppmvec)))
+multi_parvec=[[1.5,2],[5/300,2/300],[2,6],0,0.1] #FWHM in ppm to generate spectrum
+multi_lorentz_peak=op_lorentz_linbas(multi_parvec, ppmvec)+0.02*np.random.randn(len(ppmvec))+1j*0.02*np.random.randn(len(ppmvec))
 generates a "spectrum" with two peaks (their amplitudes, fwhm and frequency 
 positions are given by the first three lists in multi_parvec) and then the baseline
 slope is 0 and the offset is 0.1. If you have imported nlinfit, you can then fit
 this function by
+multi_parvec=[[1.5,2],[5,2],[2,6],0,0.1] #adjusting the FWHM values to Hz
 lbs=[[0]*len(multi_parvec[0]),[0]*len(multi_parvec[1]),[np.amin(ppmvec)]*len(multi_parvec[2]),0,-1]
 ubs=[[5]*len(multi_parvec[0]),[2]*len(multi_parvec[1]),[np.amax(ppmvec)]*len(multi_parvec[0]),1,1]
-parsFit=nlinfit(ppmvec, multi_lorentz_peak, op_lorentz_linbas, multi_parvec,bounds=(lbs,ubs))
+parsFit=nlinfit(ppmvec, multi_lorentz_peak, op_lorentz_linbas, multi_parvec,bounds=(lbs,ubs),real_nest=True)
 where bounds is optional.
 """
 from scipy.optimize import curve_fit, Bounds
 import numpy as np
 import functools
+import warnings
+from pyFidA.fidA_common.common_functions import FidAWarning
 
-def alter_func_args(funcnm):
+def alter_func_args(funcnm,real_nest=False):
     """
     func_reformatted_args=alter_func_args(funcnm)
     Decorator to generate a function that accepts arguments 
@@ -56,6 +59,10 @@ def alter_func_args(funcnm):
     ----------
     funcnm : function of the form funcnm(parlist,xdata)
         Function whose arguments are to be altered.
+    real_nest : boolean
+        Determines whether to take the real part of the function value before
+        returning the result (needed when fitting spectra that generate complex
+        data because scipy.optimize.curve_fit only works with real values)
 
     Returns
     -------
@@ -66,6 +73,8 @@ def alter_func_args(funcnm):
     @functools.wraps(funcnm)
     def wrapper(xdata,*parlist):
         yvals=funcnm(parlist,xdata)
+        if real_nest:
+            yvals=np.real(yvals)
         return yvals
     return wrapper
 
@@ -178,7 +187,7 @@ def make_flattening_functions(multipeak_func,parlist_shaped):
         return shaped_list
     return function_wrapper,flattening_wrapper,reshaping_wrapper
 
-def nlinfit(xdata,ydata,funcnm,parlist_of_lists,**kwargs):
+def nlinfit(xdata,ydata,funcnm,parlist_of_lists,real_nest=False,**kwargs):
     """
     reformatted_parsFit=nlinfit(xdata,ydata,funcnm,parlist_of_lists,**kwargs)
     Mimics Matlab's nlinfit by expecting the function for fitting to have the
@@ -246,7 +255,11 @@ def nlinfit(xdata,ydata,funcnm,parlist_of_lists,**kwargs):
 
     """
     flattened_func,flatten_vars,shape_vars=make_flattening_functions(funcnm,parlist_of_lists)
-    func_reformatted_args=alter_func_args(flattened_func)
+    if real_nest:
+        if not any(np.iscomplex(ydata)):
+            warnings.warn('WARNING: nlinfit called with real_nest=True but ydata appear to be real. Proceeding anyway.',FidAWarning)
+        ydata=np.real(ydata)
+    func_reformatted_args=alter_func_args(flattened_func,real_nest=real_nest)
     if 'bounds' in kwargs.keys():
         # Covers the case where bounds are entered as an object of class Bounds rather than as an iterable. Largely untested
         if isinstance(kwargs['bounds'],Bounds):
@@ -270,7 +283,7 @@ def nlinfit(xdata,ydata,funcnm,parlist_of_lists,**kwargs):
     if 'jac' in kwargs.keys():
         print('WARNING: Jacobian not tested for wrapping functions in curvefit_tools. Set to None if you get an error.')
         flattened_jac,*_=make_flattening_functions(kwargs['jac'],parlist_of_lists)
-        jac_reformatted_args=alter_func_args(flattened_jac)
+        jac_reformatted_args=alter_func_args(flattened_jac,real_nest=real_nest)
         kwargs['jac']=jac_reformatted_args
     parsFit, pcov=curve_fit(func_reformatted_args, xdata, ydata, flatten_vars(parlist_of_lists),**kwargs)
     reformatted_parsFit=shape_vars(parsFit)

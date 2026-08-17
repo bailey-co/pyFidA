@@ -1818,16 +1818,16 @@ if __name__ == '__main__':
     # out_left.plot_spec(plotax=ax1[1])
     # new_right.plot_spec(plotax=ax1[1])
     
-    # #from curvefit_tools import alter_func_args
-    # pname='/Users/nearlabmacbook1/Documents/BrukerData/FUS_pentobarbital/20240916_133721_SKWU1A_Sept16_2024_RK50_HL_SKWU1A_Sept16_20_1_4'
-    # fid1=fio.io_loadspec_bruk(os.path.join(pname,'5','rawdata.job0'))
+    #from curvefit_tools import alter_func_args
+    pname='/Users/nearlabmacbook1/Documents/BrukerData/FUS_pentobarbital/20240916_133721_SKWU1A_Sept16_2024_RK50_HL_SKWU1A_Sept16_20_1_4'
+    fid1=fio.io_loadspec_bruk(os.path.join(pname,'5','rawdata.job0'))
     # outdat,fids_presum,specs_presum,coilcombos=op_addrcvrs(fid1)
     # fid_avg,ph0=op_autophase(op_averaging(outdat),2.9,3.1)
     # test=op_creFit(fid_avg)
     
-    pname='/Users/nearlabmacbook1/Documents/BrukerS4_Data/OrganoidAlaConstructs/2026_04_10_HRMAS_PBS_ExpSetup/10'
-    outdict=fio.io_loadspec_brukNMR(os.path.join(pname,'fid'),spectrometer=True,ADC_OFFSET=68)
-    phased_spec,ph0=op_autophase(outdict,new_method=True,show_plots=True)
+    # pname='/Users/nearlabmacbook1/Documents/BrukerS4_Data/OrganoidAlaConstructs/2026_04_10_HRMAS_PBS_ExpSetup/10'
+    # outdict=fio.io_loadspec_brukNMR(os.path.join(pname,'fid'),spectrometer=True,ADC_OFFSET=68)
+    # phased_spec,ph0=op_autophase(outdict,new_method=True,show_plots=True)
     # # aligned_scan=aligned_scan[:,1:]
     # # tmpfreq=np.zeros([30,])
     # # for specct in range(1,30):

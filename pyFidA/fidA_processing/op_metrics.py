@@ -61,7 +61,7 @@ def op_getLW(indat,Refppmmin=4.4,Refppmmax=5.0,zpfactor=8,suppressPlots=True,met
                 parsGuess[0]=maxRef[linect] #AMPLITUDE
                 parsGuess[2]= waterFreq #FREQUENCY position of peak in ppm     
                 yGuess=op_lorentz_linbas(parsGuess,ppmwindow);
-                parsFit=nlinfit(ppmwindow, np.real(newref[:,linect]), op_lorentz_linbas, parsGuess)
+                parsFit=nlinfit(ppmwindow, newref[:,linect], op_lorentz_linbas, parsGuess,real_nest=True)
                 FWHM2.append(parsFit[1])
                 # Note that we are calling nlinfit for op_lorentz_linbas directly, 
                 #so parsGuess[1] is in ppm and parsFit[1] that is returned will 

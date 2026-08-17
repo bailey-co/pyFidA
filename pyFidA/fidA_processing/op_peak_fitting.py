@@ -9,9 +9,9 @@ Created on Fri Jun  5 14:52:34 2026
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.special import voigt_profile
+from pyFidA.fidA_common import FidAException
 from .curvefit_tools import nlinfit
 from .op_common_processing import add_phase, op_addphase,freqrange,op_freqrange
-from pyFidA.fidA_common import FidAException
 import warnings
 
 def op_creFit(indat,ph0=0,ph1=0,ppmmin=2.9,ppmmax=3.15,peaktype='lorentz',parameter_bounds=False,disp_result='partial'):
@@ -63,7 +63,7 @@ def op_creFit(indat,ph0=0,ph1=0,ppmmin=2.9,ppmmax=3.15,peaktype='lorentz',parame
     parsFitHz : list
         List of fit parameters (amplitude, FWHM in Hz, ppm0 peak position in ppm,
         bsaeline slope, baseline intercept). Note that the FWHM is returned in 
-        Hz even though op_lorentaz_linbas uses the FWHM in ppm. If you need the
+        Hz even though op_lorentz_linbas uses the FWHM in ppm. If you need the
         FWHM in ppm or want to send parsFitHz to op_lorentz_linbas to get a FID
         object of the fit, you can divide parsFitHz[1]/(indat.txfreq/1e6) or 
         use op_peakFit with return_pars_in_Hz=False instead of using op_creFit.
@@ -155,7 +155,7 @@ def op_gauss_linbas(pars,ppm):
         y[act,:]=y[act,:]/np.amax(np.abs(y[act,:]))*aval
     bas=base_off+base_slope*ppm
     y=np.sum(y,axis=0)
-    y=np.real(add_phase(y+bas,ph0))
+    y=add_phase(y+bas,ph0)
     return y.squeeze()
 
 def op_gauss(pars,ppm):
@@ -298,7 +298,7 @@ def op_lorentz_linbas(pars,ppm):
         y[act,:]=y[act,:]/np.amax(np.abs(y[act,:]))*aval
     bas=base_off+base_slope*ppm
     y=np.sum(y,axis=0)
-    y=np.real(add_phase(y+bas,ph0))
+    y=add_phase(y+bas,ph0)
     return y.squeeze()
     
 def op_lorentz(pars,ppm):
@@ -596,7 +596,8 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         pb2=Hz_to_ppm(parameter_bounds[1], whichvars=FWHMpars,send_warning=False)
         parameter_bounds=(pb1,pb2)
     yGuess=fitfunc(parsGuess,indat.ppm)
-    parsFit=nlinfit(ppm,np.real(specs),fitfunc,parsGuess,bounds=parameter_bounds)
+    # No longer taking real part of specs because this is done in nlinfit wrapper
+    parsFit=nlinfit(ppm,specs,fitfunc,parsGuess,bounds=parameter_bounds,real_nest=True)
     parsFit_Hz=ppm_to_Hz(parsFit,whichvars=FWHMpars)
     yFit=fitfunc(parsFit,indat.ppm)
     if type(show_plot) is bool:
@@ -694,5 +695,5 @@ def op_voigt_linbas(pars,ppm):
         y[act,:]=y[act,:]/np.amax(np.abs(y[act,:]))*aval
     bas=base_off+base_slope*ppm
     y=np.sum(y,axis=0)
-    y=np.real(add_phase(y+bas,ph0))
+    y=add_phase(y+bas,ph0)
     return y.squeeze()
