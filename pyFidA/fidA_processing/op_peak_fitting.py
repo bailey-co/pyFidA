@@ -14,7 +14,7 @@ from .curvefit_tools import nlinfit
 from .op_common_processing import add_phase, op_addphase,freqrange,op_freqrange
 import warnings
 
-def op_creFit(indat,ph0=0,ph1=0,ppmmin=2.9,ppmmax=3.15,peaktype='lorentz',parameter_bounds=False,disp_result='partial'):
+def op_creFit(indat,ph0=0,ph1=0,ppmmin=2.9,ppmmax=3.15,peaktype='lorentz2',parameter_bounds=False,disp_result='partial'):
     """
     parsFitHz=op_creFit(indat,ph0=0,ph1=0,ppmmin=2.9,ppmmax=3.15,peaktype='lorentz',parameter_bounds=False,disp_result='partial')
     
@@ -39,11 +39,14 @@ def op_creFit(indat,ph0=0,ph1=0,ppmmin=2.9,ppmmax=3.15,peaktype='lorentz',parame
     ppmmax : float, optional
         Upper bound of the frequency range to include in the peak fit. The default is 3.15.
     peaktype : str, optional
-        Defines the lineshape of the peak to be fit. Possibilities are 'gauss' 
-        and 'lorentz'. This is provided more for convenience as there is not 
-        generally a reason to fit non-Lorentzian lineshapes - btter to call 
-        op_peakFit directly. Type 'voigt' is not possible because of the 
-        initial parameter guess hard-coded in op_creFit. The default is 'lorentz'.
+        Defines the lineshape of the peak to be fit. Possibilities are 
+        'lorentz2' (which fits baseline offset but not slope) and 'lorentz' 
+        (fits baseline offset and slope). In contrast to Matlab fid-A, the 
+        baseline parameters are complex and the default is to fit the baseline
+        offset only (without baseline slope). Because the ppm range is so small,
+        the baseline parameters are quite sensitive to noise and large baseline
+        slopes that do not agree with the baseline of the full spectrum can 
+        result. Therefore, the default is 'lorentz2'.
     parameter_bounds : boolean, list, tuple or scipy.optimize Bounds object, optional
         Upper and lower bounds of the parameters passed to op_peakFit. True will
         create the default upper and lower parameter bounds defined in op_peakFit.
@@ -85,13 +88,21 @@ def op_creFit(indat,ph0=0,ph1=0,ppmmin=2.9,ppmmax=3.15,peaktype='lorentz',parame
     ind_vals=np.logical_and(np.greater(indat.ppm,ppmmin),np.less(indat.ppm,ppmmax))
     ppm_part=indat.ppm[ind_vals]
     spec_part=phased_spec.specs[ind_vals]
-    base_slope=(np.real(spec_part[0])-np.real(spec_part[-1]))/(ppm_part[0]-ppm_part[-1])
+    base_slope=(spec_part[0]-spec_part[-1])/(ppm_part[0]-ppm_part[-1])
     # amp, FWHM (in Hz), ppm0, base_slope, base_off
-    parsGuess=[np.amax(np.real(spec_part)),
-              3,
-              ppm_part[np.argmax(np.real(spec_part))], # in Matlab, this is hard-coded as 3.02 and ppmmin and ppmmax are also hard-coded
-              base_slope,
-              np.real(spec_part[0])-base_slope*ppm_part[0]] # phase is added above and not fit for
+    if peaktype=='lorentz':
+        parsGuess=[np.amax(np.real(spec_part)),
+                  3,
+                  ppm_part[np.argmax(np.real(spec_part))], # in Matlab, this is hard-coded as 3.02 and ppmmin and ppmmax are also hard-coded
+                  base_slope,
+                  spec_part[0]] # phase is added above and not fit for
+    elif peaktype=='lorentz2':
+        parsGuess=[np.amax(np.real(spec_part)),
+                  3,
+                  ppm_part[np.argmax(np.real(spec_part))], # in Matlab, this is hard-coded as 3.02 and ppmmin and ppmmax are also hard-coded
+                  spec_part[0]]
+    else:
+        raise Exception('ERROR: peaktype not recognized. Must be one of "lorentz" or "lorentz2.')
     outdat,parsFitHz,resids=op_peakFit(indat,ppmmin=ppmmin,ppmmax=ppmmax,parsGuess=parsGuess,peaktype=peaktype,parameter_bounds=parameter_bounds,show_plot=disp_result)
     if disp_result: # Plots are already done in op_peakFit. Now print parameters.
         print('Fit: '+', '.join(['{:3.2f}'.format(eachpar) for eachpar in parsFitHz]))
@@ -225,9 +236,9 @@ def op_integrate(indat,ppmmin,ppmmax,mode='re'):
     """
     whichpts=[slice(None)]*indat.ndim
     if indat.ppm[0]<indat.ppm[-1]:
-        whichpts[indat.dims['t']]=slice(np.nonzero(indat.ppm>ppmmin)[0][0],np.nonzero(indat.ppm>=ppmmax)[0][0]-1)
+        whichpts[indat.dims['t']]=slice(np.flatnonzero(indat.ppm>ppmmin)[0],np.flatnonzero(indat.ppm>=ppmmax)[0]-1)
     else:
-        whichpts[indat.dims['t']]=slice(np.nonzero(indat.ppm<=ppmmax)[0][0]+1,np.nonzero(indat.ppm<ppmmin)[0][0])
+        whichpts[indat.dims['t']]=slice(np.flatnonzero(indat.ppm<=ppmmax)[0]+1,np.flatnonzero(indat.ppm<ppmmin)[0])
     if mode=='re':
         intvals=np.sum(np.real(indat.specs[tuple(whichpts)]),axis=indat.dims['t'])
     elif mode=='im':
@@ -342,8 +353,11 @@ def op_lorentz(pars,ppm):
 
 def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',parameter_bounds=False,show_plot=False,return_pars_in_Hz=True):
     """
-    outdat,parsFit,resids=op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',parameter_bounds=False,show_plot=False,return_pars_in_Hz=True)
-    Perform a fit of a region of a spectrum to one or more peaks.
+    Perform a fit of a region of a spectrum to one or more peaks with a 
+    specified lineshape. This function is able to deal with complex data and
+    complex parameters, as well as multiple peaks. It is intended to be 
+    flexible and some examples of fitting with different specifications will be
+    outlined in a future tutorial.
     
     Parameters
     ----------
@@ -360,20 +374,24 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         (it is converted here in op_peakFit):
         [amplitude, fwhm in Hz, frequency of peak(s), baseline slope, baseline offset, phase].
         For the lineshape functions in this toolbox (op_lorentz_linbas, 
-        op_gauss_linbas, op_voigt_linbas), more information is available in the
-        docstring of those functions, particularly about pars. Generally, the 
-        baseline slope, baseline offset and phase shift parameters are optional 
-        and are scalars, while the amplitude, fwhm and center frequency are 
-        required and can be scalars (for a single peak) or lists/numpy arrays 
-        (for multiple peaks)
-        The default of None will attempt to set reasonable starting values like:
+        op_gauss_linbas, op_voigt_linbas, op_lorentz), more information is 
+        available in the docstring of those functions, particularly about pars. 
+        Generally, the baseline slope, baseline offset and phase shift 
+        parameters are optional and are scalars, while the amplitude, fwhm and 
+        center frequency are required and can be scalars (for a single peak) or 
+        lists/numpy arrays (for multiple peaks). Parameters can be complex but
+        the initial guess must explicitly enter a complex number or array (
+        ie. something that passes np.iscomplexobj(mypar)=True).
+        The default of None will attempt to set reasonable starting values for
+        the function defined in peaktype, like:
         amp=np.amax(np.abs(indat.specs)),
         fwhm=5,
-        ppm0=ppm[np.argmax(specs)]
-        and 0 for the baseline slope, baseline intercept and phase. If you want 
-        to fit without phase or baseline parameters, you will need to enter
-        a value for parsGuess with guesses for any optional parameters that you
-        want.
+        ppm0=ppm[np.argmax(np.abs(specs))]
+        0+0j for the baseline slope and baseline intercept
+        0 for phase.
+        If you want to fit without phase or baseline parameters, you will need 
+        to enter a value for parsGuess that excludes these optional parameters,
+        starting at the end (see tutorial)
     peaktype : str or function. optional
         The function that defines the lineshape used to generate the y-values 
         for fitting. Implemented string options are:
@@ -381,23 +399,26 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
             'lorentz2': op_lorentz
             'gauss': op_gauss_linbas
             'voigt': op_voigt_linbas
-        Users can also provide a function name directly provided that its inputs
-        are of the form [pars, ppm], although features like automatically generating
-        parameter_bounds and converting linewidths from Hz to ppm will not be
-        available. The default is 'lorentz'.
+        Users can also provide a function name directly, as long as its inputs
+        are of the form [pars, ppm], although features like automatically 
+        generating parameter_bounds and converting linewidths from Hz to ppm 
+        will not be available. The default is 'lorentz'.
     parameter_bounds : boolean or list, numpy array or scipy's Bounds type, optional
         Describes how to deal with the bounds on the parameters. Options are:
             True - default values are defined based on certain assumptions eg.
                    amplitudes are between 0 and 2*np.amax*np.abs(indat.specs),
                    the center frequencies are between the ppmmin and ppmmax values
-                   etc.
+                   etc. This is only implemented for the 4 peaktype values 
+                   identified with strings, above.
             False - bounds are -infinity to +infinity
             list, numpy array or Bounds object - explicit values for the bounds 
-                of each parameters; this will be passed into scipy.optimize.curve_fit
-                (after reformatting for the multi-peak case)
+                of each parameters; should be a two-element tuple/list with
+                each element having the same format as parsGuess. This will be 
+                passed into scipy.optimize.curve_fit (after reformatting for 
+                the multi-peak case)
             The default is False.
     show_plot : boolean or str 'partial', optional
-        Describes whether or who to plot the data and output fit information.
+        Describes whether or how to plot the data and output fit information.
         True - Output the data, initial guess and fit across the full range of 
             indat. Also output text about the area under the curve.
         False - No plots or text output
@@ -412,8 +433,8 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         returning a value in Hz makes the most sense. However, fitting functions
         like op_lorentz_linbas take fwhm in ppm (because they don't have access
         to transmit frequency to convert from Hz). It is sometimes useful to
-        take use the returned parameters from a fit and send them to a lineshape
-        as op_lorentz_linbas(parsFit,indat.ppm) to generate the y-values 
+        take the returned parameters from a fit and send them to a lineshape as
+        op_lorentz_linbas(parsFit,indat.ppm) to generate the y-values 
         separately. Setting this parameter to False will return parsFit with 
         fwhm in ppm so that it can used with the lineshape functions if needed.
         The default is True.
@@ -508,8 +529,6 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
                 parList[varnum]=parList[varnum]*(indat.txfreq/1e6)
         return parList
     
-    # Note that there is no checks that indat.ndim>1 here (like there is in op_creFit)
-    # but there probably should be
     if indat.ndim!=1:
         raise FidAException('ERROR: For fitting, data can only have one dimension. Use op_squeeze() to remove singleton dimensions. Your data are: ({:s})'.format(', '.join(indat.dims)))
 
@@ -521,41 +540,34 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         fitfunc=op_lorentz_linbas
         minpars=3
         FWHMpars=[1]
-        # parsGuess controls what is being fit for. This default fits a single 
-        # peak, plus baseline offset, baseline slope and phase. User can change 
-        # this by entering their own parsGuess, including one that has multiple 
-        # peaks, or doesn't fit phase, etc.
         if parsGuess is None:
             # amp, fwhm (in Hz here but will be converted later), ppm0, baseline slope, baseline offset, phase
-            parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0]*3
+            parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0j,0j,0]
     elif peaktype=='lorentz2':
         fitfunc=op_lorentz
         minpars=3
         FWHMpars=[1]
-        # parsGuess controls what is being fit for. This default fits a single 
-        # peak, plus baseline offset, baseline slope and phase. User can change 
-        # this by entering their own parsGuess, including one that has multiple 
-        # peaks, or doesn't fit phase, etc.
         if parsGuess is None:
             # amp, fwhm (in Hz here but will be converted later), ppm0, baseline offset, phase
-            parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0]*2
+            parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0j,0]
     elif peaktype=='gauss':
         fitfunc=op_gauss_linbas
         minpars=3
         FWHMpars=[1]
         if parsGuess is None:
             # amp, fwhm (in Hz here but will be converted later), ppm0, baseline slope, baseline offset, phase
-            parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0]*3
+            parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0j,0j,0]
     elif peaktype=='voigt':
         fitfunc=op_voigt_linbas
         minpars=4
         FWHMpars=[1,2]
         if parsGuess is None:
             # amp,fwhm_gauss,fwhm_lor,ppm0,base_slope,base_off,ph0
-            parsGuess=[np.amax(np.abs(specs)),default_FWHM,default_FWHM,ppm[np.argmax(specs)]]+[0]*3
+            parsGuess=[np.amax(np.abs(specs)),default_FWHM,default_FWHM,ppm[np.argmax(specs)]]+[0j,0j,0]
     elif callable(peaktype):
         fitfunc=peaktype
-        parsGuess=[1]*peaktype.__code__.co_argcount
+        if parsGuess is None:
+            parsGuess=[1]*peaktype.__code__.co_argcount
         FWHMpars=[]
     else:
         raise ValueError("Variable peaktype must be either 'lorentz','lorentz2','gauss', 'voigt' or callable function.")
@@ -563,6 +575,7 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
     # to +inf if parameter_bounds=False. Otherwise use parameter_bounds values entered.
     if type(parameter_bounds) is bool:
         # First make a list the same length as parsGuess (ignoring if individual elements are lists themselves for now)
+        # Complex parameters that need infinite bounds can be entered as np.inf and will be adjusted by nlinfit
         lb=[-np.inf]*len(parsGuess)
         ub=[np.inf]*len(parsGuess)
         # Now set some parameters to more limited range for single peak if parameter_bounds=True
@@ -596,8 +609,8 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         pb2=Hz_to_ppm(parameter_bounds[1], whichvars=FWHMpars,send_warning=False)
         parameter_bounds=(pb1,pb2)
     yGuess=fitfunc(parsGuess,indat.ppm)
-    # No longer taking real part of specs because this is done in nlinfit wrapper
-    parsFit=nlinfit(ppm,specs,fitfunc,parsGuess,bounds=parameter_bounds,real_nest=True)
+    # No longer taking real part of specs because complex data are dealt with in nlinfit wrapper
+    parsFit=nlinfit(ppm,specs,fitfunc,parsGuess,bounds=parameter_bounds)
     parsFit_Hz=ppm_to_Hz(parsFit,whichvars=FWHMpars)
     yFit=fitfunc(parsFit,indat.ppm)
     if type(show_plot) is bool:
@@ -607,7 +620,7 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
             ax1.plot(indat.ppm,np.real(yGuess),':',label='guess')
             ax1.plot(indat.ppm,np.real(yFit),'-',label='fit')
             if type(parsFit[0]) is list:
-                print('Area under the fitted curve is: '++str([pv1*pv2 for pv1,pv2 in zip(parsFit[0],parsFit[1])]))
+                print('Area under the fitted curve is: '+str([pv1*pv2 for pv1,pv2 in zip(parsFit[0],parsFit[1])]))
             else:
                 print('Area under the fitted curve is: '+str(parsFit[0]*parsFit[1]))
     elif show_plot=='partial':
@@ -617,6 +630,7 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         yFit_part=freqrange(yFit,indat.ppm,ppmmin,ppmmax)[1]
         ax1.plot(ppm,np.real(yGuess_part),':',label='guess')
         ax1.plot(ppm,np.real(yFit_part),'-',label='fit')
+        ax1.legend()
         if type(parsFit[0]) is list:
             print('Area under the fitted curve is: '++str([pv1*pv2 for pv1,pv2 in zip(parsFit[0],parsFit[1])]))
         else:

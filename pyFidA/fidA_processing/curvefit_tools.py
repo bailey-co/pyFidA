@@ -9,11 +9,16 @@ Matlab's nlinfit. This is a result of trying to make peak-generating functions
 like op_lorentz_linbas(pars,ppm) match the setup in Matlab's fid-A (same order
 and type of arguments), even though the main non-linear curve-fitting algorithm
 in Python, scipy.optimize.curve_fit, expects the function arguments in a different
-order and format, namely func(xdata,par1,par2,...).
-This change is accomplished by decorating the original function to (1) flatten 
-the input variable into a single list of floats/ints, (2) reversing the order of
-the xdata and pars arguments so they are as curve_fit expects and (3) unpacking
-the list of parameters so that they are accepted as separate input arguments.
+order and format, namely func(xdata,par1,par2,...). There has also been 
+functionality added so that multiple peaks with the same lineshape can be entered
+as lists/arrays within the main parameter list (eg. a list of amplitudes that
+has npeak elements in it, followed by a list of FWHM with npeak elements, etc.) 
+This module also allows complex parameters to be input (eg. for baseline offset)
+These changes are accomplished by decorating the original function to (1) 
+flatten the input variable into a single list of floats/ints, (2) split any
+complex parameters into real and imaginary parts, (3) reverse the order of the 
+xdata and pars arguments so they are as curve_fit expects and (3) unpacking the 
+list of parameters so that they are accepted as separate input arguments.
 Additional functions for flattening and reshaping arrays of the same size as
 the parameters are also generated so that (1) sigma and bounds can also be 
 entered in the same format as the original function's variable and then flattened
@@ -23,13 +28,14 @@ into the right format is also made, although this has only been tested on lists
 and numpy arrays.
 If you want to fit a spectrum with some lineshape function that you have that
 is like the existing Matlab fid-A lineshape functions setups, you can start with
-from curvefit_tools import nlinfit
+"from curvefit_tools import nlinfit""
 and then you should be able to use nlinfit similar to how you would in Matlab.
 (Extra arguments related to other parts of curve_fit and the least squares
 algorithm follow Python's structure rather than Matlab's though, and the 
 arguments MUST be entered as keyword arguments even though curve_fit allows some
 of them to be entered as args. Also the Jacobian is not tested at all.)
 
+For a larger list of examples, a tutorial will be developed.
 eg.
 ppmvec=np.linspace(11.3,-2,2048)
 multi_parvec=[[1.5,2],[5/300,2/300],[2,6],0,0.1] #FWHM in ppm to generate spectrum
@@ -50,75 +56,32 @@ import functools
 import warnings
 from pyFidA.fidA_common.common_functions import FidAWarning
 
-def alter_func_args(funcnm,real_nest=False):
+def alter_func_args(funcnm):
     """
-    func_reformatted_args=alter_func_args(funcnm)
-    Decorator to generate a function that accepts arguments 
+    Decorator that takes a function that has input arguments [parlist,xdata] 
+    and generates a new function that can be used with scipy.optimize.curve_fit
+    (with arguments [xdata,par1,par2,...]
 
     Parameters
     ----------
     funcnm : function of the form funcnm(parlist,xdata)
         Function whose arguments are to be altered.
-    real_nest : boolean
-        Determines whether to take the real part of the function value before
-        returning the result (needed when fitting spectra that generate complex
-        data because scipy.optimize.curve_fit only works with real values)
 
     Returns
     -------
-    wrapper : Wrapper for a function. Wrapper function has the form func(xdata,*parlist)
+    wrapper : A function with the form func(xdata,*parlist)
         Decorated function where arguments are reversed and the second argument
         (a list) is unpacked before calling.
     """
     @functools.wraps(funcnm)
     def wrapper(xdata,*parlist):
         yvals=funcnm(parlist,xdata)
-        if real_nest:
-            yvals=np.real(yvals)
         return yvals
     return wrapper
 
-def real_wrapper(funcnm,parlist):
-    # Not using this yet because I think there are still issues. And, arguably,
-    # you could just leave it as-is, taking the real part and only fitting the
-    # real part of the baseline functions, because this mimics Matlab
-    
-    # Note that parlist has to be flat here, so you want to run it after make_flattening_functions
-    # But then run before alter_func_args so that parlist is a list (not unpacked)
-    newparlist=list()
-    complex_var_list=list()
-    for eachpar in parlist:
-        if np.iscomplex(eachpar):
-            complex_var_list=True
-            newparlist.append(np.real(eachpar))
-            newparlist.append(np.imag(eachpar))
-        else:
-            complex_var_list=False
-            newparlist.append(eachpar)
-            
-    # Note that you still have to reshape y-values
-    @functools.wraps(funcnm)
-    def real_fitting_func(real_parlist,xdata):
-        y_complex=funcnm(real_parlist,xdata)
-        return np.concatenate(np.real(y_complex),np.imag(y_complex))
-    
-    def remake_complex_fitpars(real_fit_pars):
-        complex_fit_pars=list()
-        itct=0
-        for complex_flag in complex_var_list:
-            if complex_flag:
-                complex_fit_pars.append(real_fit_pars[itct]+1j*real_fit_pars[itct+1])
-                itct=itct+2
-            else:
-                complex_fit_pars.append(real_fit_pars[itct])
-                itct=itct+1
-        return complex_fit_pars
-    return real_fitting_func, newparlist, remake_complex_fitpars
-
-def make_flattening_functions(multipeak_func,parlist_shaped):
+def make_flattening_functions(multipeak_func,parlist_shaped,real_nest):
     """
-    flattened_func,flatten_vars,shape_vars=make_flattening_functions(multipeak_func,parlist_shaped)
-    Decorator to generate three functions, as described in Returns section
+    Decorator to generate three functions, as described in Returns section, below
 
     Parameters
     ----------
@@ -136,15 +99,30 @@ def make_flattening_functions(multipeak_func,parlist_shaped):
         A list of variables. Each entry in the list may be an int, float, list
         or numpy array. This is used to generate the flattening and reshaping
         functions based on the size and type of each entry.
+    real_nest : boolean
+        Describes whether the ydata that was passed to nlinfit for comparison
+        with the function output was complex data that has been altered to
+        a 1D array of the form [np.real(ydata),np.imag(ydata)]. If 
+        multipeak_func returns complex y-values and real_nest is True, then the
+        function returned in function_wrapper will also alter the y-values into
+        a 1D array of this format. In contrast, multipeak_func returns complex
+        numbers but real_nest is False, then a FidAWarning is thrown and only 
+        the real portion of the complex output will be returned for comparison 
+        to the real-valued experimental ydata. (If multipeak_func does not 
+        return complex data then y-values are simply returned as-is because
+        that is already a 1D real-valued array)
 
     Returns
     -------
-    function_wrapper : Wrapper for a function. Wrapper function has the form func(flatlist,xdat)
+    function_wrapper : function of the form func(flatlist,xdat)
         Decorated function where the first argument is flattened list, ie. the
-        list does not contain any entries that are themselves lists.
+        list does not contain any entries that are themselves lists and any 
+        complex parameters have been split into separate elements of flatlist
+        for the real and imaginary parts.
     flattening_wrapper : A function of the form func(shaped_list1)
         Takes shaped_list1 and flattens it such that any entries that are lists
-        are appended into one long list of separate ints of floats. The 
+        are appended into one long list of separate ints of floats. If any of
+        the elements of shaped_list are complex, The 
         flat_list is returned after a basic check that its length matches that 
         for the flattened parlist_shaped sent in during the initial decorator 
         call.
@@ -160,13 +138,31 @@ def make_flattening_functions(multipeak_func,parlist_shaped):
     iter_vec=list()
     #type_vec=list()
     n_els=list()
+    # Since iterables are assumed to be parameters for separate peaks, it is
+    # assumed that, if the one element's parameter guess is complex, every 
+    # parameter in that list outght to be complex. In general, peak parameters 
+    # (amplitude, FWHM, center frequency) will be real, so a list of parameters
+    # within the full list should not be complex at all, let alone a mix of
+    # complex and real values. The parameters that I expect to be complex are 
+    # all scalars. But trying to be somewhat general, here.
+    complex_els=list()
     for eachit in parlist_shaped:
         if hasattr(eachit,'__iter__'):
             iter_vec.append(True)
-            n_els.append(len(eachit))
+            if np.iscomplexobj(eachit):
+                n_els.append(2*len(eachit))
+                complex_els.append(True)
+            else:
+                n_els.append(len(eachit))
+                complex_els.append(False)
         else:
             iter_vec.append(False)
-            n_els.append(1)
+            if np.iscomplexobj(eachit):
+                n_els.append(2)
+                complex_els.append(True)
+            else:
+                n_els.append(1)
+                complex_els.append(False)
         #type_vec.append(eachit.__class__.__name__)
     tot_els=sum(n_els)
         
@@ -176,18 +172,42 @@ def make_flattening_functions(multipeak_func,parlist_shaped):
         # just use the wrapper function for this
         reshaped_list=reshaping_wrapper(flatlist)
         yvals=multipeak_func(reshaped_list,xdat)
+        if np.iscomplexobj(yvals):
+            if not real_nest:
+                warnings.warn('WARNING: Function produces complex output but data to compare with appear to be real. Taking real part of function output',FidAWarning)
+                yvals=np.real(yvals)
+            else:
+                yvals=np.concatenate([np.real(yvals),np.imag(yvals)])
         return yvals
     
     def flattening_wrapper(shaped_list1):
         # adding some extra cases to deal with bounds, etc that are scalars
         if hasattr(shaped_list1,'__iter__'):
             flat_list=list()
+
             for varct,eachvar in enumerate(shaped_list1):
                 if iter_vec[varct]:
-                    for eachit in eachvar:
-                        flat_list.append(eachit)
+                    if complex_els[varct]:
+                        for eachit in eachvar:
+                            if np.isinf(eachit):
+                                flat_list.append(eachit)
+                                flat_list.append(eachit)
+                            else:
+                                flat_list.append(np.real(eachit))
+                                flat_list.append(np.imag(eachit))
+                    else:
+                        for eachit in eachvar:
+                            flat_list.append(eachit)
                 else:
-                    flat_list.append(eachvar)
+                    if complex_els[varct]:
+                        if np.isinf(eachvar):
+                            flat_list.append(eachvar)
+                            flat_list.append(eachvar)
+                        else:
+                            flat_list.append(np.real(eachvar))
+                            flat_list.append(np.imag(eachvar))
+                    else:
+                        flat_list.append(eachvar)
             # If parlist_shaped doesn't match the size of whatever is entered
             # for shaped_list1, there are two possibilities. If parlist_shaped 
             # is shorter than shaped_list1, you'll get an IndexError from iter_vec[varct]
@@ -214,17 +234,26 @@ def make_flattening_functions(multipeak_func,parlist_shaped):
         for act,(start_idx,end_idx) in enumerate(zip(idxpts[:-1],idxpts[1:])):
             if iter_vec[act]:
                 if isinstance(parlist_shaped,np.ndarray):#type_vec[act]=='ndarray':
-                    shaped_list.append(np.array(flat_list1[start_idx:end_idx]))
+                    if complex_els[act]:
+                        shaped_list.append(np.array(flat_list1[start_idx:end_idx:2]+1j*flat_list1[start_idx+1:end_idx:2]))
+                    else:
+                        shaped_list.append(np.array(flat_list1[start_idx:end_idx]))
                 else: # assumes list type for other iterables
-                    shaped_list.append(list(flat_list1[start_idx:end_idx]))
+                    if complex_els[act]:
+                        shaped_list.append(list(flat_list1[start_idx:end_idx:2]+1j*flat_list1[start_idx+1:end_idx:2]))
+                    else:
+                        shaped_list.append(list(flat_list1[start_idx:end_idx]))
             else: # floats and ints
-                shaped_list.append(flat_list1[start_idx])
+                if complex_els[act]:
+                    shaped_list.append(flat_list1[start_idx]+1j*flat_list1[start_idx+1])
+                else:
+                    shaped_list.append(flat_list1[start_idx])
         if isinstance(parlist_shaped,np.ndarray):
             shaped_list=np.array(shaped_list)
         return shaped_list
     return function_wrapper,flattening_wrapper,reshaping_wrapper
 
-def nlinfit(xdata,ydata,funcnm,parlist_of_lists,real_nest=False,**kwargs):
+def nlinfit(xdata,ydata,funcnm,parlist_of_lists,**kwargs):
     """
     reformatted_parsFit=nlinfit(xdata,ydata,funcnm,parlist_of_lists,**kwargs)
     Mimics Matlab's nlinfit by expecting the function for fitting to have the
@@ -291,15 +320,20 @@ def nlinfit(xdata,ydata,funcnm,parlist_of_lists,real_nest=False,**kwargs):
         calls.
 
     """
-    flattened_func,flatten_vars,shape_vars=make_flattening_functions(funcnm,parlist_of_lists)
+    # Note that np.iscomplex will not return True for any elements that are just
+    # 0j. However, np.iscomplexobj will return True even if 0j is the only complex
+    # number in the array
+    if np.iscomplexobj(ydata):
+        real_nest=True
+        ydata=np.concatenate([np.real(ydata),np.imag(ydata)])
+    else:
+        real_nest=False
+    flattened_func,flatten_vars,shape_vars=make_flattening_functions(funcnm,parlist_of_lists,real_nest)
     # For each parameter in parlist of lists, if it's scalar AND complex-valued,
     # split it into two parameters and make a new function that accepts the new
     # parameter list
-    if real_nest:
-        if not any(np.iscomplex(ydata)):
-            warnings.warn('WARNING: nlinfit called with real_nest=True but ydata appear to be real. Proceeding anyway.',FidAWarning)
-        ydata=np.real(ydata)
-    func_reformatted_args=alter_func_args(flattened_func,real_nest=real_nest)
+    
+    func_reformatted_args=alter_func_args(flattened_func)
     if 'bounds' in kwargs.keys():
         # Covers the case where bounds are entered as an object of class Bounds rather than as an iterable. Largely untested
         if isinstance(kwargs['bounds'],Bounds):
@@ -326,5 +360,6 @@ def nlinfit(xdata,ydata,funcnm,parlist_of_lists,real_nest=False,**kwargs):
         jac_reformatted_args=alter_func_args(flattened_jac,real_nest=real_nest)
         kwargs['jac']=jac_reformatted_args
     parsFit, pcov=curve_fit(func_reformatted_args, xdata, ydata, flatten_vars(parlist_of_lists),**kwargs)
+    #parsFit, pcov=curve_fit(func_reformatted_args, xdata, ydata, flatten_vars(parlist_of_lists))
     reformatted_parsFit=shape_vars(parsFit)
     return reformatted_parsFit

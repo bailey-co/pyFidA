@@ -449,7 +449,8 @@ class FID(object):
         else:
             spec_for_plot=np.real(self.specs)
         plotax.plot(self.ppm,spec_for_plot,**kwargs)
-        plotax.set_xlim(xlims)
+        if not (xlims is None or xlims==[]):
+            plotax.set_xlim(xlims)
         plotax.set_xlabel(xlab)
         plotax.set_ylabel(ylab)
         plotax.set_title(title)
