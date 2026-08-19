@@ -30,7 +30,7 @@ There is limited functionality for non-proton spectroscopy. Users can enter the 
 
 ## Installation
 
-pyFidA is not yet available through a package management system. The github repository can be cloned or downloaded, then added to your path. The dependency requirements are listed in pyproject.toml and include: numpy, scipy, matplotlib, pandas and spec2nii. Several tutorials are available in Jupyter notebook so this package is also recommended. If you install [spec2nii](https://github.com/wtclarke/spec2nii) and jupyter, this should cover all of the other dependencies needed for pyFidA. An example step-by-step process that _may_ work for conda users is:
+pyFidA is not yet available through a package management system. The github repository can be cloned or downloaded, then added to your path. The dependency requirements are listed in pyproject.toml and include: numpy, scipy, matplotlib, pandas and spec2nii. Several tutorials are available in Jupyter notebook so this package is also recommended if you want to follow those. If you install [spec2nii](https://github.com/wtclarke/spec2nii) and matplotlib, this should cover all of the other dependencies needed for pyFidA. An example step-by-step process that _may_ work for [Anaconda](https://anaconda.org) users is:
 
 1. In your shell:
 ```
