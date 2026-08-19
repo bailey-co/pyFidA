@@ -351,7 +351,7 @@ def op_lorentz(pars,ppm):
     yvals=op_lorentz_linbas(pars, ppm)
     return yvals
 
-def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',parameter_bounds=False,show_plot=False,return_pars_in_Hz=True):
+def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',parameter_bounds=False,real_ydata=False,show_plot=False,return_pars_in_Hz=True):
     """
     Perform a fit of a region of a spectrum to one or more peaks with a 
     specified lineshape. This function is able to deal with complex data and
@@ -542,28 +542,40 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         FWHMpars=[1]
         if parsGuess is None:
             # amp, fwhm (in Hz here but will be converted later), ppm0, baseline slope, baseline offset, phase
-            parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0j,0j,0]
+            if real_ydata:
+                parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0,0,0]
+            else:
+                parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0j,0j,0]
     elif peaktype=='lorentz2':
         fitfunc=op_lorentz
         minpars=3
         FWHMpars=[1]
         if parsGuess is None:
             # amp, fwhm (in Hz here but will be converted later), ppm0, baseline offset, phase
-            parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0j,0]
+            if real_ydata:
+                parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0,0]
+            else:
+                parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0j,0]
     elif peaktype=='gauss':
         fitfunc=op_gauss_linbas
         minpars=3
         FWHMpars=[1]
         if parsGuess is None:
             # amp, fwhm (in Hz here but will be converted later), ppm0, baseline slope, baseline offset, phase
-            parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0j,0j,0]
+            if real_ydata:
+                parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0,0,0]
+            else:
+                parsGuess=[np.amax(np.abs(specs)),default_FWHM,ppm[np.argmax(specs)]]+[0j,0j,0]
     elif peaktype=='voigt':
         fitfunc=op_voigt_linbas
         minpars=4
         FWHMpars=[1,2]
         if parsGuess is None:
             # amp,fwhm_gauss,fwhm_lor,ppm0,base_slope,base_off,ph0
-            parsGuess=[np.amax(np.abs(specs)),default_FWHM,default_FWHM,ppm[np.argmax(specs)]]+[0j,0j,0]
+            if real_ydata:
+                parsGuess=[np.amax(np.abs(specs)),default_FWHM,default_FWHM,ppm[np.argmax(specs)]]+[0,0,0]
+            else:
+                parsGuess=[np.amax(np.abs(specs)),default_FWHM,default_FWHM,ppm[np.argmax(specs)]]+[0j,0j,0]
     elif callable(peaktype):
         fitfunc=peaktype
         if parsGuess is None:
@@ -610,6 +622,8 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         parameter_bounds=(pb1,pb2)
     yGuess=fitfunc(parsGuess,indat.ppm)
     # No longer taking real part of specs because complex data are dealt with in nlinfit wrapper
+    if real_ydata:
+        specs=np.real(specs)
     parsFit=nlinfit(ppm,specs,fitfunc,parsGuess,bounds=parameter_bounds)
     parsFit_Hz=ppm_to_Hz(parsFit,whichvars=FWHMpars)
     yFit=fitfunc(parsFit,indat.ppm)
