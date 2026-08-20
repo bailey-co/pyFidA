@@ -9,7 +9,7 @@ Created on Fri Jun  5 14:52:34 2026
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.special import voigt_profile
-from pyFidA.fidA_common import FidAException
+from pyFidA.fidA_common import FidAException, FidAWarning
 from .curvefit_tools import nlinfit
 from .op_common_processing import add_phase, op_addphase,freqrange,op_freqrange
 import warnings
@@ -157,7 +157,7 @@ def op_gauss_linbas(pars,ppm):
         [amp,fwhm,ppm0,base_slope,base_off,ph0]=full_pars
     # Warn if units appear to be Hz (value assumes 1H nucleus)
     if fwhm[0]>0.3:
-        print('WARNING: FWHM in op_gauss_linbas should be entered in ppm. Your value of {:3.3f} may be in Hz!'.format(fwhm[0]))
+        warnings.warn('WARNING: FWHM in op_gauss_linbas should be entered in ppm. Your value of {:3.3f} may be in Hz!'.format(fwhm[0]),FidAWarning)
     # Second parameter is FWHM but the equation below uses sigma. 
     sigma=[fv/2/np.sqrt(2*np.log(2)) for fv in fwhm]
     y=np.zeros([len(amp),len(ppm)],dtype=complex)
@@ -296,7 +296,7 @@ def op_lorentz_linbas(pars,ppm):
     # op_lorentz_linbas divides by pi in Matlab but op_lorentz divides by 2 and this
     # is what gives FWHM in ppm.
     if fwhm[0]>0.3:
-        print('WARNING: FWHM in op_lorentz_linbas should be entered in ppm. Your value of {:3.3f} may be in Hz!'.format(fwhm[0]))
+        warnings.warn('WARNING: FWHM in op_lorentz_linbas should be entered in ppm. Your value of {:3.3f} may be in Hz!'.format(fwhm[0]),FidAWarning)
     # In Matlab, op_lorentz_linbas divides by pi but op_lorentz divides by 2. If
     # fwhm is in ppm then the gamma parameter is just fwhm/2, which is what I've
     # done here for both op_lorentz_linbas and op_lorentz.
@@ -488,10 +488,10 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
             if send_warning:
                 try: # list/np.array case
                     if parList[varnum][0]<0.1 and indat.nucleus[0]=='1H':
-                        print('WARNING: FWHM should be entered in Hz. Your value of {:3.3f} may be in ppm!'.format(parList[varnum][0]))
+                        warnings.warn('WARNING: FWHM should be entered in Hz. Your value of {:3.3f} may be in ppm!'.format(parList[varnum][0]),FidAWarning)
                 except TypeError: # int/float case
                     if parList[varnum]<0.1 and indat.nucleus[0]=='1H':
-                        print('WARNING: FWHM should be entered in Hz. Your value of {:3.3f} may be in ppm!'.format(parList[varnum]))
+                        warnings.warn('WARNING: FWHM should be entered in Hz. Your value of {:3.3f} may be in ppm!'.format(parList[varnum]),FidAWarning)
             if type(parList[varnum]) is list:
                 parList[varnum]=[pval/(indat.txfreq/1e6) for pval in parList[varnum]]
             else: # This should work for either np.ndarray or float/int scalars
@@ -714,7 +714,7 @@ def op_voigt_linbas(pars,ppm):
     # units are ppm, not Hz as Matlab code suggests. Throwing a warning if fwhm
     # appears to be in the wrong units.
     if fwhm_lor[0]>0.3 or fwhm_gauss[0]>0.3:
-        print('WARNING: FWHM in op_voigt_linbas should be entered in ppm. Your values of {:3.3f}, {:3.3f}  may be in Hz!'.format(fwhm_lor[0],fwhm_gauss[0]))
+        warnings.warn('WARNING: FWHM in op_voigt_linbas should be entered in ppm. Your values of {:3.3f}, {:3.3f}  may be in Hz!'.format(fwhm_lor[0],fwhm_gauss[0]),FidAWarning)
     gamma=[fv/2 for fv in fwhm_lor]
     sigma=[fv/2/np.sqrt(2*np.log(2)) for fv in fwhm_gauss]
     y=np.zeros([len(amp),len(ppm)],dtype=complex)
