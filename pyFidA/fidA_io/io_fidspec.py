@@ -664,7 +664,8 @@ def io_loadspec_brukNMR(fname,spectrometer=True,try_raw=False,return_info_dict=F
     padw=np.zeros([fids_trunc.ndim,2],dtype=int)
     padw[0,1]=ADC_OFFSET
     fids=np.pad(fids_trunc, pad_width=padw)
-    fids=np.squeeze(np.transpose(np.reshape(fids,[npts,n_av,ncoil,n_extra]),[0,2,1,3]))
+    # rawdata does not seem to need to be transposed
+    fids=np.squeeze(np.transpose(np.reshape(fids,[npts,n_av,ncoil,n_extra]),[0,1,2,3]))
     dimlist=[dimnm for dimnm,dimsz in zip(['t','averages','coils','extras'],[npts,n_av,ncoil,n_extra]) if dimsz>1]
     fid1=FID(fids,spectralwidth,txfrq,te,tr,sequence,dims=dimlist,nucleus=whichnuc,center_freq_ppm=offset)
     
