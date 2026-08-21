@@ -160,6 +160,7 @@ class RF_pulse(object):
         bandwidth property.
     tbw : the time-bandwidth product in kHz*ms, only available for non-
         gradient-modulated pulses.
+    tw1 : the time-w1max product in kHz*ms
     tthk : the time-slice thickness product in cm*s, only available for 
         gradient-modulated pulses.
     add_phase : adds a constant phase to the RF_pulse's phase. Used in 
@@ -346,6 +347,9 @@ class RF_pulse(object):
             return 'N/A - gradient modulated pulse'
         else:
             return self._tbw
+    @property
+    def tw1(self):
+        return self._tw1
     @property
     def tthk(self):
         """
