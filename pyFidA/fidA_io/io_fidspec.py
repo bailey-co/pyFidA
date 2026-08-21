@@ -389,6 +389,37 @@ def io_loadspec_varian(fname,tag="DIM_DYN",dump_headers=True,fileout=None):
 # loading options are still present here even though they partly cover cases
 # that are also covered by spec2nii written.
 
+def io_loadspec_bruk_new(fname, mode=None,zeropad=True,nospectrum=False,query=[],dump_headers=True):
+    from spec2nii.bruker import read_bruker
+    fname=Path(fname)
+    if not fname.is_file():
+        raise FileNotFoundError('ERROR: fname not found. Enter full file path, not just directory.')
+    
+    if mode is None:
+        # try to guess the mode from the filename
+        if fname.name=='fid' or fname.name=='fid.refscan':
+            mode='FID'
+        elif fname.name=='2dseq':
+            mode='2DSEQ'
+        elif fname.name=='rawdata.job0':
+            mode='RAWDATA'
+        else:
+            raise ValueError('ERROR: Unknown file type. If this is a Bruker file, please enter a mode as FID, 2DSEQ or RAWDATA.')
+    mode=mode.upper()
+    if mode not in ['FID','2DSEQ','RAWDATA']:
+        raise ValueError('ERROR: Mode must be one of FID, 2DSEQ or RAWDATA.')
+    myargs=make_args(file=fname,mode=mode,query=query,zeropad=zeropad,nospectrum=nospectrum,inspect=False,dump_headers=True,fileout=None)
+    out_nii,f_out=read_bruker(myargs)
+    print(out_nii)
+    out_ims=list()
+    for fn,eachim in zip(f_out,out_nii):
+        print('Converting {:s}'.format(fn))
+        out_ims.append(nii_to_fidA(eachim))
+    if len(out_ims)==1:
+        return out_ims[0]
+    else:
+        return tuple(out_ims)
+    
 def io_loadspec_bruk(fname, load_ref=False, do_leftshift=True, fill_truncated_data=True):
     """
     A lot of this is similar to what is done in bruker.py in the read_bruker() 

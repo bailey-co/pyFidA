@@ -18,6 +18,7 @@ from pyFidA.fidA_io.io_fidspec import (
     io_loadspec_twix,
     io_loadspec_varian,
     io_loadspec_bruk,
+    io_loadspec_bruk_new,
     io_loadspec_brukNMR,
     io_loadspec_irBruk,
     io_loadspec_jmrui,
