@@ -417,6 +417,9 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
                 passed into scipy.optimize.curve_fit (after reformatting for 
                 the multi-peak case)
             The default is False.
+    real_ydata : boolean, optional
+        Whether to take just the real part of the spectrum in indat for fitting. 
+        The default is False.
     show_plot : boolean or str 'partial', optional
         Describes whether or how to plot the data and output fit information.
         True - Output the data, initial guess and fit across the full range of 
@@ -535,6 +538,8 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
     in_range=op_freqrange(indat,ppmmin,ppmmax)
     specs=in_range.specs
     ppm=in_range.ppm
+
+    # Set up initial parsGuess if not entered (cases with str values linked to functions only)
     default_FWHM=5 # A default guess for proton.
     if peaktype=='lorentz':
         fitfunc=op_lorentz_linbas
@@ -583,14 +588,16 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         FWHMpars=[]
     else:
         raise ValueError("Variable peaktype must be either 'lorentz','lorentz2','gauss', 'voigt' or callable function.")
-    # Set the default parameter bounds if parameter_bounds=True or set to -inf 
-    # to +inf if parameter_bounds=False. Otherwise use parameter_bounds values entered.
+    
+    # Set the default parameter bounds if parameter_bounds=True or set to +/- inf 
+    # if parameter_bounds=False. Otherwise use parameter_bounds values entered.
     if type(parameter_bounds) is bool:
         # First make a list the same length as parsGuess (ignoring if individual elements are lists themselves for now)
         # Complex parameters that need infinite bounds can be entered as np.inf and will be adjusted by nlinfit
         lb=[-np.inf]*len(parsGuess)
         ub=[np.inf]*len(parsGuess)
         # Now set some parameters to more limited range for single peak if parameter_bounds=True
+        # If parameter_bounds=False then the above infinite bounds will be used
         if parameter_bounds:
             if callable(peaktype):
                 warnings.warn("WARNING: Cannot construct parameter bounds for user-defined lineshape function. Enter paramter_bounds explicitly if needed. Using infinite bounds.")
@@ -605,13 +612,14 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
                 if len(parsGuess)==minpars+3:
                     lb[-1]=-np.pi
                     ub[-1]=np.pi
-        # Now check if multi-peak case (first parameter is iterable type - list or numpy array) and expand the bounds for those if so
+        # Now check if multi-peak case (variable is iterable type) and expand the bounds for those if so
         for parnum,eachpar in enumerate(parsGuess):
             if hasattr(eachpar,'__iter__'):
                 lb[parnum]=[lb[parnum]]*len(eachpar)
                 ub[parnum]=[ub[parnum]]*len(eachpar)
         parameter_bounds=(lb,ub)
-    # Convert fwhm in Hz to ppm for both parsGuess and parameter_bounds before sending for fitting to lineshape function
+    
+    # Convert fwhm in Hz to ppm for both parsGuess and parameter_bounds
     parsGuess=Hz_to_ppm(parsGuess, whichvars=FWHMpars,send_warning=True)
     if hasattr(parameter_bounds,'lb'): #scipy.optimize Bounds object type
         parameter_bounds.lb=Hz_to_ppm(parameter_bounds.lb, whichvars=FWHMpars,send_warning=False)
@@ -620,13 +628,18 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         pb1=Hz_to_ppm(parameter_bounds[0], whichvars=FWHMpars,send_warning=False)
         pb2=Hz_to_ppm(parameter_bounds[1], whichvars=FWHMpars,send_warning=False)
         parameter_bounds=(pb1,pb2)
+
+    # Finally ready to fit!
     yGuess=fitfunc(parsGuess,indat.ppm)
-    # No longer taking real part of specs because complex data are dealt with in nlinfit wrapper
+    # Complex data are dealt with in nlinfit wrapper, but can opt to fit just the real part
     if real_ydata:
         specs=np.real(specs)
     parsFit=nlinfit(ppm,specs,fitfunc,parsGuess,bounds=parameter_bounds)
+    # Convert FWHM in ppm back to Hz
     parsFit_Hz=ppm_to_Hz(parsFit,whichvars=FWHMpars)
     yFit=fitfunc(parsFit,indat.ppm)
+
+    # Plotting (if showplot=True or show_plot='partial')
     if type(show_plot) is bool:
         if show_plot: # True, show the full plot over the full range
             f1,ax1=plt.subplots(1,1)
@@ -651,6 +664,8 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
             print('Area under the fitted curve is: '+str(parsFit[0]*parsFit[1]))
     else:
         print("show_plot argument value not recognized. Must be True, False or 'partial'.")
+
+    # Final spectrum and parameter return
     outdat=indat.copy()
     outdat.specs=yFit
     resids=indat-outdat
@@ -661,7 +676,6 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
 
 def op_voigt_linbas(pars,ppm):
     """
-    y=op_voigt_linbas(pars,ppm)
     Generates a voigt lineshape (single or multiple peaks) and (optionally) a 
     baseline and phasing for the parameters pars over the frequencies in ppm. 
     Multiple peaks can be generated by providing amplitude, FWHM and center
