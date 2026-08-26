@@ -2,8 +2,35 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Aug 22 15:14:29 2022
+pyFidA.fidA_sim.sim_operators.py
 
-@author: nearlabmacbook1
+@author: Colleen Bailey (@cbailey@sri.utoronto.ca), based on Matlab code by Jamie Near
+
+Operations to generate spin Hamiltonians and density matrices from spin system
+information, and then simulate their changes through basic functions: rf pulse 
+effects, evolution and spoiling. Also contains code for generating a spectrum
+from a density matrix and Hamiltonian.
+
+For functions that combine these operations into larger pulse sequence 
+simulations, see pyFidA.fidA_sim.sim_sequences.py.
+
+Functions:
+    * check_angle_format
+    * sim_COF
+    * sim_coherenceOrder
+    * sim_dAdd
+    * sim_dMul
+    * sim_dDiv
+    * sim_evolve
+    * sim_excite
+    * sim_excite_arbPh
+    * sim_gradSpoil
+    * sim_Hamiltonian
+    * sim_readout
+    * sim_rotate
+    * sim_rotate_arbPh
+    * sim_shapedRF
+    * sim_spoil
 """
 
 import numpy as np
