@@ -2,27 +2,85 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jun  5 16:43:55 2026
+pyFidA.fidA_sim.sim_makebasis.py
 
-@author: nearlabmacbook1
+@author: Colleen Bailey (@cbailey@sri.utoronto.ca), based on Matlab code by Jamie Near
+
+High-level functions for simulating basis sets, including reading in metabolite
+information and simulating a basis set for writing to LCModel.
+
+Functions:
+    * read_all_spinsys_matlab
+    * read_spinsys_matlab
+    * sim_lcmrawbasis
 """
+
+import importlib.resources as importlib_resources
 import os
 from scipy.io import loadmat
 from pyFidA.fidA_io import io_writelcmraw
 from .sim_sequences import sim_spinecho, sim_press, sim_steam, sim_laser
 
-def read_all_spinsys_matlab(fname):
+def read_all_spinsys_matlab(fname=None):
+    """
+    Imports the .mat file for stored spin systems from pyFidA's assets folder
+    into a dict format
+
+    Parameters
+    ----------
+    fname : string or path object, optional
+        DESCRIPTION.
+
+    Returns
+    -------
+    fullDict : TYPE
+        DESCRIPTION.
+
+    """
+    if fname is None:
+        pname=importlib_resources.files('pyFidA')
+        fname=os.path.join(pname,'assets','metabolites','spinSystems.mat')
     # A dict with keys sysAla, sysAsc, etc. where the values are either dicts
     # of 'J', 'shifts', etc OR a list of such dicts when the spin system is broken up.
     fullDict={kn:vn for kn,vn in loadmat(fname,simplify_cells=True).items() if kn.startswith('sys')}
     return fullDict
 
 def read_spinsys_matlab(fname):
-    # This is either a dict with the 'J', 'shifts', etc. keys OR a list of such dicts if the spin system is broken up
+    """
+    Import the .mat file for a spin system into a dict
+
+    Parameters
+    ----------
+    fname : string or path object
+        Filename of the .mat file to import. If the filename, as entered, 
+        doesn't exist, function will try to prepend the location of pyFidA's
+        metabolites folder so that users can enter just 'Ala.mat', 'GPC.mat', 
+        etc.
+
+    Returns
+    -------
+    sysmet : dict or list of dicts
+        For an inseparable spin system, spin system parameters in the format:
+            {'name': str,
+             'shifts': 1D np.ndarray,
+             'J': 2D np.ndarray,
+             'scaleFactor': int}
+        For a separable spin system, each part of the system is its own dict 
+        entry in a list, with the dicts having the above format.
+
+    """
+    # If user doesn't enter a full file name, try to add filename to anticipated path
+    if not os.path.exists(fname):
+        pname=importlib_resources.files('pyFidA')
+        fname=os.path.join(pname,'assets','metabolites',fname)
+    # loadmat will contain a number of variable, including __header__ and __version___.
+    # Want to select just the spin system, which always starts with 'sys'
+    #is is either a dict with the 'J', 'shifts', etc. keys OR a list of such dicts if the spin system is broken up
     sysmet=[vn for kn,vn in loadmat(fname,simplify_cells=True).items() if kn.startswith('sys')][0]
     return sysmet
 
 def sim_lcmrawbasis(npts,sw,Bfield,linewidth,metab,tau1,tau2,addref,makeraw,seq,fname=None):
-    allSys=read_all_spinsys_matlab(os.path.join('..','assets','metabolites','spinSystems.mat'))
+    allSys=read_all_spinsys_matlab()
     spinSys=allSys['sys'+metab]
     if spinSys is dict:
         spinSys=[spinSys]
@@ -74,8 +132,8 @@ if __name__ == '__main__':
     #pname='/Users/nearlabmacbook1/Documents/Matlab/FID-A-master_20250521/simulationTools/metabolites'
     #pname='../exampleData/rfPulses'
     #RF1=io_loadRFwaveform(os.path.join(pname,'sampleExcPulse.pta'),type_p='exc')
-    AllSys=read_all_spinsys_matlab(os.path.join('..','assets','metabolites','spinSystems.mat'))
-    m1=read_spinsys_matlab(os.path.join('..','assets','metabolites','Gln'))
+    AllSys=read_all_spinsys_matlab(os.path.join()
+    m1=read_spinsys_matlab('Gln.mat')
     out1=sim_onepulse(4096,4000,7,linewidth=2,spinSys=m1)
     op_plotspec(out1)
     #out1=sim_cosy(4096,4000,Bfield=7,linewidth=2,spinSys=m1,npts2=256)

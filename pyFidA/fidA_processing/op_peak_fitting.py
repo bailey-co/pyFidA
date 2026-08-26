@@ -2,8 +2,20 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jun  5 14:52:34 2026
+pyFidA.fidA_processing.op_peak_fitting.py
 
-@author: nearlabmacbook1
+@author: Colleen Bailey (@cbailey@sri.utoronto.ca), based on Matlab code by Jamie Near
+
+Functions for fitting MR spectra, including lineshapes, integration and fitting 
+functions:
+    * op_creFit
+    * op_gauss_linbas
+    * op_gauss
+    * op_integrate
+    * op_lorentz_linbas
+    * op_lorentz
+    * op_peakFit
+    * op_voigt_linbas
 """
 
 import matplotlib.pyplot as plt
