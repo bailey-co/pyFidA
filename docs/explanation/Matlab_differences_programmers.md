@@ -310,3 +310,46 @@ def my_func(input1,input2,input3=0,return_extra_args=None):
 ```
 
 Note that the allow_chaining and stop_chaining functions, as well as the class instance holding the default return behaviour, are also in pyFidA.fidA_processing.alter_return_args.py. If you import the entire pyFidA package when making use of your decorated function, these functions and the default will be available. However, if you have imported only a sub-package, like fidA_sim, you may need to import the fidA_processing sub-package in order to access these other functions.
+
+# Simulations
+Not a big change (and described somewhat in [Basic Matlab Differences](Matlab_differences_basic.md)) but the spin systems are dicts (or lists of dicts) and the Hamiltonian and density matrix for a list of dicts are also lists, with each element corresponding to that part of the spin system. The Hamiltonian object replaces that Matlab struct. But the basic workings of the simulation functions are the same.
+
+# Generalizability
+Somewhat mentioned in Matlab_differences_basic.md, but could expand details here. The ability to create functions that operate on data with variable numbers of dimensions (depending on whether averages, coils, MRSI, indirect dimensions, etc) are present, relies heavily on two main numpy/Python features.
+
+The first is [numpy's broadcasting capability](https://numpy.org/doc/stable/user/basics.broadcasting), which will automatically expand an array size in order to perform an operation with another array of a different size. There are particular rules around which array dimensions will be expanded, as explained at the link. You can see an example in op_filter, where a 1D exponential vector intended to be multiplied across the time domain, is applied to indat.fids, which may have many other dimensions. There is no need to use np.tile (numpy's equivalent of repmat) or to write out separate cases for different indat.fids shapes with ngrid. By transposing fids so that 't' is the last dimension, the multiplication with the Lorentzian filter in the time dimension will automatically be repeated for every other dimension (and then the result needs to be transposed back to match the original dimension order).
+
+The second tool is the slice object and, in particular, slice(None) and Ellipsis constant (or, more commonly, the '...' notation). An array is often sliced using the ":" operator and ints. For example, if myarray had shape (2048,4,250), you could get the very first element by myarray[0,0,0]. If you wanted all elements from the first dimension, but only in the first position of other dimensions, you would use myarray[:,0,0]. If you wanted the first ten elements, that's myarray[:10,0,0]. But how would this work if you don't know how many dimensions myarray has? In the case of selecting the first element, you can use lists:
+```python
+myslice=[0]*myarray.ndim
+myarray[tuple(myslice)]
+# Will return the element at (0) if myarray is a 1D array
+# Will return the element at (0,0) if myarray is 2D
+# Will return the element at (0,0,0) if my array is 3D, etc.
+```
+Note that the slices should be entered as a tuple rather than a list in order to be correctly interepreted.
+
+The slice(None) call can be used to replace any dimension where you want to return all elements from that particular dimension. Alternatively, slice(10) could be used to return the first ten items. The slice object allows for start, stop and step values, similar to the ":" notation but start will default to 0 and a single input argument will be teh stop value. [More on the slice object](https://docs.python.org/3/library/functions.html#slice)
+```python
+myslice=[0]*myarray.ndim
+myslice[0]=slice(None)
+myarray[tuple(myslice)]
+# Will return myarray[:,0,0] if myarray has 3 dimensions
+
+myslice[0]=slice(10)
+myarray[tuple(mylsice)]
+# Will return myarray[:10,0,0] if myarray has 3 dimensions
+
+# It is often useful to do the opposite: eg. if you had an 
+# fid and you wanted to know the first time point for all 
+# averages and all coils
+myslice=[slice(None)]*myarray.ndim
+myslice[0]=0
+myarray[tuple(myslice)]
+# Returns the first element in the first dimension across
+# all other dimensions. For this particular case, you can
+# also use the Ellipsis constant:
+myarray[0,...]
+# Equivalent to the above.
+```
+Here, the '...' used in the last line is interpreted as "replace all missing dimensions with ':'." The ellipsis can also be used at the start of the brackets or the middle to fill in any dimensions that aren't defined. (More on [the use of '...' with numpy arrays]())

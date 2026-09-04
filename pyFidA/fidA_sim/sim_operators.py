@@ -4,7 +4,8 @@
 Created on Mon Aug 22 15:14:29 2022
 pyFidA.fidA_sim.sim_operators.py
 
-@author: Colleen Bailey (@cbailey@sri.utoronto.ca), based on Matlab code by Jamie Near
+@author: Colleen Bailey (@cbailey@sri.utoronto.ca), based on Matlab code by 
+Jamie Near and Robin Simpson
 
 Operations to generate spin Hamiltonians and density matrices from spin system
 information, and then simulate their changes through basic functions: rf pulse 
@@ -15,7 +16,6 @@ For functions that combine these operations into larger pulse sequence
 simulations, see pyFidA.fidA_sim.sim_sequences.py.
 
 Functions:
-    * check_angle_format
     * sim_COF
     * sim_coherenceOrder
     * sim_dAdd
@@ -40,28 +40,73 @@ from pyFidA import io_loadRFwaveform
 
 
 def check_angle_format(anglein,Hlist):
-    # This code is common to sim_rotate, sim_rotate_arbPh, sim_excite and 
-    # sim_excite_arbPh so I've moved it to a separate function. You need to
-    # have Hlist as an input argument so that you can know the length of each
-    # part of the spin system though.
-    if hasattr(anglein,'__iter__'):#list or np.array
+    """
+    Checks the type and length of the variable anglein and adjusts it to match
+    the format of the spin system represented by Hlist, if needed. Code is used 
+    in sim_rotate, sim_rotate_arbPh, sim_excite and sim_excite_arbPh so was 
+    moved to its own function.
+
+    Parameters
+    ----------
+    anglein : list OR np.ndarray OR float
+        Angle(s) to be reformatted.
+    Hlist : list of Hamiltonian objects
+        Each list element is the Hamiltonian for a separable part of the spin
+        system. Only the shifts portion of each Hamiltonian is used, to expand
+        anglein to match its length, if needed.
+
+    Raises
+    ------
+    ValueError
+        If anglein is an iterable but its length does not match the length of 
+        Hlist OR if one of the list elements is itself an iterable, but its 
+        length doesn't match that of the corresponding Hamiltonian shifts 
+        array.
+
+    Returns
+    -------
+    angleout : list of np.ndarray elements
+        anglein, expanded to match the size of the spin system.
+
+    """
+    if hasattr(anglein,'__iter__'): #list or np.array
         angleout=list()
         if len(anglein)==len(Hlist):
             for listct,(eachang,hmat) in enumerate(zip(anglein,Hlist)):
-                if hasattr(eachang,'__iter__'):#note that these should be np.array. Attempt to convert if list
+                if hasattr(eachang,'__iter__'): #elements can be used as-is. Forcing conversion to np.array in the case of lists
                     if len(eachang)==len(hmat.shifts):
-                        angleout.append(np.array(eachang))#np.array takes care of case where anglein is list of lists (can be list on outer part but must be np.array on innner)
+                        angleout.append(np.array(eachang))
                     else:
                         raise ValueError('ERROR: For anglein as list of iterables, each list element must have the same length as "shifts" in the corresponding element of Hlist.')
-                else:#element of anglein is a scalar, make into np.array
+                else: #element of anglein is a scalar, make into np.array
                     angleout.append(eachang*np.ones(len(hmat.shifts)))
         else:
             raise ValueError('ERROR: For anglein as list, it must have the same length as the list of Hamiltonians for the spin system, Hlist.')
-    else:#anglein is scalar. Create list of angle arrays that match length of shifts for elements of Hlist.
+    else: #anglein is scalar. Create list of angle arrays that match length of shifts for elements of Hlist.
         angleout=[anglein*np.ones(len(hmat.shifts)) for hmat in Hlist]
     return angleout
 
 def sim_COF(Hlist,d_in,order):
+    """
+    Nulls the signal from any undesired coherences in a spin system. Desired
+    coherences are determined through extended phase graph analysis and pulse
+    sequence design.
+
+    Parameters
+    ----------
+    Hlist : list of Hamiltonian objects
+        Hamiltonian operators for each part of the spin system.
+    d_in : list of np.ndarray
+        The input density matrices for each part of the spin system.
+    order : int
+        Desired coherence order that you wish to keep signal from.
+
+    Returns
+    -------
+    d_out : list of np.ndarray
+        Output density matrices with only desired coherences.
+
+    """
     d_out=list()
     for eachd,hmat in zip(d_in,Hlist):
         mask1=(hmat.coherenceOrder==order)
@@ -69,6 +114,23 @@ def sim_COF(Hlist,d_in,order):
     return d_out
 
 def sim_coherenceOrder(spinSys):
+    """
+    Creates a list of coherence order matrices for each element of the density
+    matrix of the spin system. These can then be used to null signal 
+    incoherences during pulse sequence simulations.
+
+    Parameters
+    ----------
+    spinSys : dict or list of dicts
+        Spin system to generate coherence matrix for.
+
+    Returns
+    -------
+    outlist : list of numpy arrays
+        Coherence order matrix (or matrices, if spinSys has multiple elements)
+        for the spin system.
+
+    """
     if type(spinSys) is dict:
         spinSys=[spinSys]
     outlist=list()
@@ -81,36 +143,111 @@ def sim_coherenceOrder(spinSys):
     return outlist
 
 def sim_dAdd(d1,d2,factor=1):
-    # I'm not running all of the checks that are in Matlab because I think that
-    # this should be sufficient. Could consider making a class for the density
-    # matrix that has __add__, __mul__, etc. functions but not sure that it's
-    # worth it.
+    """
+    Add together two density matrices. Needed because density matrix outputs 
+    from simulations are lists (even in single-element cases), the "+" operator
+    will be interpreted as appending, not addition. The case of arrays rather
+    than lists is also handled, although the + and - operators work in that 
+    case.
+
+    Parameters
+    ----------
+    d1 : list of numpy arrays
+        First input density matrix to be added
+    d2 : list of numpy arrays
+        Second input density matrix to be added
+    factor : float, optional
+        Mainly used to indicate addition (1) or subtraction (-1) but any 
+        scaling factor for the second density matrix is a valid input. The 
+        default is 1.
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Sum (or difference) of d1 and d2.
+
+    """
     if type(d1) is list and type(d2) is list:
         d_out=[d1val+d2val*factor for d1val,d2val in zip(d1,d2)]
     else:
         d_out=d1+d2*factor
     return d_out
 
-def sim_dMul(d_in,factor):
-    if type(d_in) is list:
-        d_out=[dval*factor for dval in d_in]
-    else:
-        d_out=factor*d_in
-    return d_out
-
 def sim_dDiv(d_in,factor):
+    """
+    Divide a density matrix by a scalar. Needed because density matrix 
+    outputs from simulations are lists (even in single-element cases), so the 
+    "/" operator will not work. The case where d_in is an array is also 
+    handled, although the / operator works in that case.
+
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrix to be divided
+    factor : float
+        Scalar factor to divide by.
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Result of d_in / factor.
+
+    """
     if type(d_in) is list:
         d_out=[dval/factor for dval in d_in]
     else:
         d_out=d_in/factor
     return d_out
 
+def sim_dMul(d_in,factor):
+    """
+    Multiply a density matrix by a scalar. Needed because density matrix 
+    outputs from simulations are lists (even in single-element cases), so the 
+    "*" operator will be interpreted as a list expansion, not multiplication. 
+    The case where d_in is an array is also handled, although the * operator
+    works in that case.
+
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrix to be multiplied
+    factor : float
+        Scalar multiplication factor.
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Result of d_in * factor.
+
+    """
+    if type(d_in) is list:
+        d_out=[dval*factor for dval in d_in]
+    else:
+        d_out=factor*d_in
+    return d_out
+
 def sim_evolve(d_in,Hlist,t):
+    """
+    Simulate the free evolution of the spin system under the effects of 
+    chemical shift and J-coupling
+
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrices.
+    Hlist : list of Hamiltonian objects
+        Hamiltonian operators for the spin system.
+    t : float
+        Duration of evolution, in seconds.
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Output density matrices following free evolution.
+
+    """
     d_out=list()
     for dmat,Hmat in zip(d_in,Hlist):
-        # Could consider defining the __mul__ operator for Hamiltonian objects 
-        # to do matrix multiplication, in order to simplify code below, but 
-        # probably better to stay consistent with numpy notation
         p=expm(1j*Hmat.HAB*t)
         d_out.append(np.dot(np.dot(p.conj().T,dmat),p))
     return d_out
@@ -201,28 +338,48 @@ def sim_gradSpoil(d_in,Hlist,gradvec,posvec,dur):
     return d_out
 
 def sim_Hamiltonian(spinSys,Bfield,nucleus='1H',center_freq_ppm=4.65):
-    # I've got a Hamiltonian object and this creates a list of Hamiltonian objects
-    # that corresponds to the spin system (for spin systems like GPC where there
-    # are independent parts and you can make the math go faster by having them
-    # separated out and then just combine them at the end). It could be worth 
-    # considering having a Hamiltonian list object that subclasses list and
-    # gives you, like, the total number of spins, or maybe functions to combine
-    # the spins later??? Actually though there don't seem to be many use cases
-    # for that since the Hamiltonian is relatively simple and it's the density
-    # matrix that evolves (might be more useful to have an object for a list of
-    # density matrix components).
-    if type(spinSys) is not list: # dict, only a single set of spins for this metabolite. Make list for iterable calls below.
+    """
+    Create the Hamiltonian and density matrix for (a) spin system(s). In cases 
+    where a list of spin systems is entered (eg. because a spin system is 
+    separable), a list of Hamiltonians and density matrices will be generated, 
+    with an element for each spin system.
+
+    Parameters
+    ----------
+    spinSys : dict or list
+        Dictionary containing the name, shifts, J-couplings and scaleFactor of
+        the spin system, or a list of such dicts representing multiple spin
+        systems.
+    Bfield : float
+        Mangetic field strength in Tesla.
+    nucleus : string, optional
+        Nucleus used to identify the gyromagnetic ratio for calculating the 
+        frequency from the Bfield. The default is '1H'.
+    center_freq_ppm : float, optional
+        Center frequency in ppm, used to adjust the positions of the shifts in 
+        spinSys before generating the Hamiltonian. The default is 4.65 ppm.
+
+    Returns
+    -------
+    Hlist : list
+        List of Hamiltonian objects for each element in spinSys. Even if 
+        spinSys is a dict, Hlist returns a list with one element
+    dlist : list
+        List of np.ndarray objects representing the equilibrium density matrix
+        for each element in spinSys. Even if spinSys is a dict, dlist returns a 
+        list with one element
+
+    """
+    if type(spinSys) is not list: # dict, only a single set of spins for this metabolite. Convert to single element list
         spinSys=[spinSys]
-    # Note that all Hamiltonians and density matrices generated this way will be
-    # lists, even if they only have one element.
-    hamlist=list()
+    Hlist=list()
     dlist=list()
     for sysct,each_syspart in enumerate(spinSys):
         newsys=each_syspart.copy()
         newsys['shifts']=each_syspart['shifts']-center_freq_ppm
-        hamlist.append(Hamiltonian(newsys,Bfield,nucleus))
-        dlist.append(hamlist[sysct].initd.copy())
-    return hamlist,dlist
+        Hlist.append(Hamiltonian(newsys,Bfield,nucleus))
+        dlist.append(Hlist[sysct].initd.copy())
+    return Hlist,dlist
 
 def sim_readout(d_in,Hlist,npts,sw,linewidth,rcvPhase=0,shape='L',center_freq_ppm=4.65,Rval=0.5):
     d_out=list()
