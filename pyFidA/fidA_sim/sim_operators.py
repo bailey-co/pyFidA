@@ -49,8 +49,15 @@ def check_angle_format(anglein,Hlist):
     Parameters
     ----------
     anglein : list OR np.ndarray OR float
-        Angle(s) to be reformatted.
-    Hlist : list of Hamiltonian objects
+        Angle(s) to be reformatted. If anglein is a scalar, then it is expanded
+        so that angleout has the same number for all spins in the spin system.
+        If anglein is a list/array of scalars, it will be expanded to apply
+        the same flip angle to each spin within a part of the spin system and
+        the parts of the spin system have different values. If anglein is a 
+        list/array of lists/arrays, then angleout is a copy of anglein 
+        (provided that the lengths match the spin system sizes in Hlist), with 
+        a unique flip angle for every spin in each part of the spin system.
+    Hlist : list of pyFidA.Hamiltonian objects
         Each list element is the Hamiltonian for a separable part of the spin
         system. Only the shifts portion of each Hamiltonian is used, to expand
         anglein to match its length, if needed.
@@ -94,7 +101,7 @@ def sim_COF(Hlist,d_in,order):
 
     Parameters
     ----------
-    Hlist : list of Hamiltonian objects
+    Hlist : list of pyFidA.Hamiltonian objects
         Hamiltonian operators for each part of the spin system.
     d_in : list of np.ndarray
         The input density matrices for each part of the spin system.
@@ -235,8 +242,8 @@ def sim_evolve(d_in,Hlist,t):
     ----------
     d_in : list of numpy arrays
         Input density matrices.
-    Hlist : list of Hamiltonian objects
-        Hamiltonian operators for the spin system.
+    Hlist : list of pyFidA.Hamiltonian objects
+        Hamiltonian operator(s) for the spin system(s).
     t : float
         Duration of evolution, in seconds.
 
@@ -253,6 +260,30 @@ def sim_evolve(d_in,Hlist,t):
     return d_out
 
 def sim_excite(d_in,Hlist,whichax,anglein=90):
+    """
+    Simulate the effect of an ideal (instantaneous) excitation pulse on the
+    density matrix.
+
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrices.
+    Hlist : list of pyFidA.Hamiltonian objects
+        Hamiltonian operator(s) for the spin system.
+    whichax : 'x' or 'y'
+        Axis of rotation.
+    anglein : float or numpy array or list, optional
+        Flip angle of excitation in degrees. The angle can be the same for 
+        every part of the spin system, or different for different spins, 
+        depending on the type/format that anglein is entered in. See docstring
+        of check_angle_format for more details. The default is 90.
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Output density matrices following excitation pulse.
+
+    """
     angle=check_angle_format(anglein, Hlist)
     
     if whichax.lower()=='x':
@@ -262,19 +293,12 @@ def sim_excite(d_in,Hlist,whichax,anglein=90):
     d_out=list()
     for eachd,hmat,eachang in zip(d_in,Hlist,angle):
         alpha=np.where(hmat.shifts>=30,0,eachang*np.pi/180)
-        # alpha will broadcast to match size of Ix or Iy, then can add over axis=2
-        excite=np.sum(alpha*hmat.Imats[whichdir],axis=2)
+        # np.dot(a,b) will do a sum product over the last axis of a and b when b is 1D. (Slightly faster than np.sum(b*a),axis=2)
+        excite=np.dot(hmat.Imats[whichdir],alpha)
         # Note that the eigenvalue that you get from linalg.eig are ordered 
-        # differently and produce a different result than for Matlab. I'm not 
-        # sure if this is just the bit of imaginary component creating problems
-        # but using eigh, for Hermitian, seems to more closely back the Matlab
-        # work. So just need to ensure that excite is always Hermitian?? I guess 
-        # that you could run a check on whether excite is Hermitian to be safe 
-        # Actually, I guess that I can work this out because Imats is made up of
-        # the 4 base matrices in various combinations (kronecker) and those matrices
-        # are themselves all Hermitian so I would guess that the kronecker product
-        # is also Hermitian then??
-        # but also this might be something known.
+        # differently and produce a different result than for Matlab. Should
+        # still work fine but np.linalg.eigh seems to match Matlab so using
+        # that.
         [D,U]=np.linalg.eigh(excite)
         d1=np.diag(np.exp(-1j*D))
         d2=np.diag(np.exp(1j*D))
@@ -284,54 +308,86 @@ def sim_excite(d_in,Hlist,whichax,anglein=90):
     return d_out
 
 def sim_excite_arbPh(d_in,Hlist,ph_ax,anglein=90):
+    """
+    Simulates the effect of an ideal (instantaneous) excitation pulse on the
+    density matrix. The phase of the excitation pulse can be arbitrarily 
+    chosen. To achieve an arbitrary phase, there is a rotation about z by
+    -1*phase, then a rotation about x by anglein, then a rotation back around
+    z by phase.
+
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrices.
+    Hlist : list of pyFidA.Hamiltonian objects
+        Hamiltonian operator(s) for the spin system.
+    ph_ax : float
+        Phase of rotation in degrees. 0='x', 90='y', etc.
+    anglein : float or numpy array or list, optional
+        Flip angle of excitation in degrees. The angle can be the same for 
+        every part of the spin system, or different for different spins, 
+        depending on the type/format that anglein is entered in. See docstring
+        of check_angle_format for more details. The default is 90.
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Output density matrices following excitation pulse.
+
+    """
     angle=check_angle_format(anglein, Hlist)
     
     d_out=list()
     for eachd,hmat,eachang in zip(d_in,Hlist,angle):
         alpha=np.where(hmat.shifts>=30,0,eachang*np.pi/180)
-        # alpha will broadcast to match size of Ix or Iy, then can add over axis=2
-        #excite=np.sum(alpha*hmat.Imats[0],axis=2)
+        # np.dot(a,b) will do a sum product over the last axis of a and b when b is 1D. (Slightly faster than np.sum(b*a),axis=2)
         excite=np.dot(hmat.Imats[0],alpha)
-        # In Matlab, phase*pi/180 is multiplied on the matrix for each spin, before
-        # addition, so you actually multiply by nspins*phase*pi/180, which doesn't
-        # seem quite right. I think that it should be pulled out of the sum so that
-        # the angle is just multiplied in once. This is how you can get ph_ax=90
-        # to match up with sim_excite with whichax='y'. So I've changed that here
-        # in Python from what was done in Matlab. (I ran with the ph_ax factor in
-        # and outside of the sum and it seemed to come out the same)
         Rz=np.sum(ph_ax*np.pi/180*hmat.Imats[2],axis=2)
-        # In Matlab, these expressions are wrong. They are listed as expm(1*Rz)
-        # and expm(1*excite) so they are missing the imaginary component.
+        # In Matlab, these expressions are missing the imaginary component.
         p=expm(1j*Rz)
         q=expm(1j*excite)
+        # Breaking the matrix multiplications up into parts for readability
         mat1=np.dot(np.dot(p.conj().T,q.conj().T),p)
         mat2=np.dot(np.dot(p.conj().T,q),p)
         d_out.append(np.dot(np.dot(mat1,eachd),mat2))
     return d_out
 
 def sim_gradSpoil(d_in,Hlist,gradvec,posvec,dur):
-    # This definitely needs to be tested. I know know how gradvec gets multiplied
-    # in. Need to find if there is somewhere that this function is called??
-    gamma=Hlist[0]._gamma
-    # Convert gradvec into T/m
-    gradvec=gradvec/100
-    # Convert posvec into m
-    posvec=posvec/100
-    # Convert dur into s
-    dur=dur/1000
+    """
+    Simulate the effect of a rectangular spoiler gradient with a given 
+    amplitude, duration and direction at a particular point in space.
+
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrices.
+    Hlist : list of pyFidA.Hamiltonian objects
+        Hamiltonian operator(s) for the spin system.
+    gradvec : 3-element numpy array
+        Vector of the gradient spoiler amplitudes np.r_[Gx,Gy,Gz] in G/cm.
+    posvec : 3-element numpy array
+        Position vector of the spins of interest np.r_[x,y,z] in cm.
+    dur : float
+        Duration of the gradient pulse in ms.
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Output density matrices following the spoiler gradient.
+
+    """
+    gamma=Hlist[0]._gamma # in Hz/T
+    gradvec=gradvec/100 # Convert gradvec into T/m
+    posvec=posvec/100 # Convert posvec into m
+    dur=dur/1000 # Convert dur into s
     # Calculate the actual gradient field at point [x,y,z] in units of Tesla
-    # Oh, I see, gradvec and posvec are both 3-element vectors for x,y and z 
-    # directions (the above said that but I didn't realize it wasn't a 2D matrix)
-    # so B_gradTotal is scalar (and thus angle1 is scalar)
+    # Since gradvec and posvec are both 3-element vectors, the dot product
+    # B_gradTotal is a scalar
     B_gradTotal=np.dot(gradvec,posvec)
-    # The phase in radians generated by the gradient pulse
+    # The phase in radians generated by the gradient pulse (also scalar)
     angle1=2*np.pi*gamma*B_gradTotal*dur
     d_out=list()
     for eachd,hmat in zip(d_in,Hlist):
-        # Same issue with whether angle1 should be in the sum or out. I ran with 
-        # the angle both inside and outside and it comes out the same so I guess
-        # it doesn't matter, although I find that a bit strange because for
-        # sim_excite, it seems to give differences. Maybe z is special.
         spoil=angle1*np.sum(hmat.Imats[2],axis=2)
         p=expm(1j*spoil)
         d_out.append(np.dot(np.dot(p.conj().T,eachd),p))
@@ -339,19 +395,22 @@ def sim_gradSpoil(d_in,Hlist,gradvec,posvec,dur):
 
 def sim_Hamiltonian(spinSys,Bfield,nucleus='1H',center_freq_ppm=4.65):
     """
-    Create the Hamiltonian and density matrix for (a) spin system(s). In cases 
-    where a list of spin systems is entered (eg. because a spin system is 
-    separable), a list of Hamiltonians and density matrices will be generated, 
-    with an element for each spin system.
+    Create the Hamiltonian and density matrix for spin system. In cases 
+    where spin system is a list of dicts (eg. because spin system is 
+    separable), a list of Hamiltonians and a list of density matrices will be 
+    generated, each element representing a separable part of the spin system.
+    (Where a system is separable, it is better to separate it into parts to
+    reduce the size of matrices and thus the time spent on matrix 
+    multiplications and matrix exponential calculations in simulations)
 
     Parameters
     ----------
     spinSys : dict or list
         Dictionary containing the name, shifts, J-couplings and scaleFactor of
-        the spin system, or a list of such dicts representing multiple spin
-        systems.
+        the spin system, or a list of such dicts representing separable parts
+        of a spin system.
     Bfield : float
-        Mangetic field strength in Tesla.
+        Magnetic field strength in Tesla.
     nucleus : string, optional
         Nucleus used to identify the gyromagnetic ratio for calculating the 
         frequency from the Bfield. The default is '1H'.
@@ -361,16 +420,18 @@ def sim_Hamiltonian(spinSys,Bfield,nucleus='1H',center_freq_ppm=4.65):
 
     Returns
     -------
-    Hlist : list
-        List of Hamiltonian objects for each element in spinSys. Even if 
-        spinSys is a dict, Hlist returns a list with one element
-    dlist : list
-        List of np.ndarray objects representing the equilibrium density matrix
-        for each element in spinSys. Even if spinSys is a dict, dlist returns a 
-        list with one element
+    Hlist : list of pyFidA.Hamiltonian objects
+        Hamiltonians for each part of spinSys. Even if spinSys is a dict, 
+        Hlist will be a list. All pyFidA simulation operators expect 
+        Hamiltonians in a list, even if it only has a single element.
+    dlist : list of numpy arrays
+        The equilibrium density matrix for spinSys, with each separable part
+        as its own element of the list. Even if spinSys is a dict, dlist will
+        be a list since lists are expected as input for all pyFidA simulation
+        functions.
 
     """
-    if type(spinSys) is not list: # dict, only a single set of spins for this metabolite. Convert to single element list
+    if type(spinSys) is not list: # dict case converted to list
         spinSys=[spinSys]
     Hlist=list()
     dlist=list()
@@ -382,6 +443,44 @@ def sim_Hamiltonian(spinSys,Bfield,nucleus='1H',center_freq_ppm=4.65):
     return Hlist,dlist
 
 def sim_readout(d_in,Hlist,npts,sw,linewidth,rcvPhase=0,shape='L',center_freq_ppm=4.65,Rval=0.5):
+    """
+    Simulate an ADC readout of the transverse magnetization during the free
+    evolution of the spin system under the effects of chemical shift and
+    J-coupling.
+
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrices.
+    Hlist : list of pyFidA.Hamiltonian objects
+        Hamiltonian operator(s) for the spin system.
+    npts : int
+        Number of readout points
+    sw : float
+        Spectral width in Hz.
+    linewidth : float
+        Full width at half maximum of spectral peaks, in Hz.
+    rcvPhase : float, optional
+        Receiver phase, in degrees. The default is 0.
+    shape : string, optional
+        Shape to use for line broadening function. Options are 'L' for 
+        Lorentzian, 'G' for Gaussian, and 'LG' for Lorentz-Gauss mixture. 
+        The default is 'L'.
+    center_freq_ppm : float, optional
+        Center frequency of the spectrum in ppm. The default is 4.65 ppm.
+    Rval : float between 0 and 1, optional
+        Fraction of Lorentz-Gauss mixture that is made up of each peak shape.
+        A value of 0 is fully Gaussian and a value of 1 is fully Lorentzian.
+        This number is only used when shape='LG'. The default is 0.5.
+
+    Returns
+    -------
+    out1 : pyFidA.FID object
+        Simulated spectrum resulting from the readout.
+    d_out : list of numpy arrays
+        Output density matrix following readout.
+
+    """
     d_out=list()
     out_parts=list()
     deltat=1/sw
@@ -392,7 +491,7 @@ def sim_readout(d_in,Hlist,npts,sw,linewidth,rcvPhase=0,shape='L',center_freq_pp
         t2=1/(np.pi*linewidth)
         decay=np.exp(-np.r_[:npts]*deltat/t2)
     elif shape.lower()=='g' or shape.lower()=='gauss':
-        # I think Matlab might have calculated 1/sigma and not sigma???
+        # I think Matlab might have calculated 1/sigma and not sigma?
         sigma=linewidth/np.sqrt(2*np.log(2))*np.pi
         decay=np.exp(-1*(np.r_[:npts]*deltat)**2/(2*sigma**2))
     elif shape.lower()=='lg':
@@ -402,7 +501,6 @@ def sim_readout(d_in,Hlist,npts,sw,linewidth,rcvPhase=0,shape='L',center_freq_pp
     else:
         raise ValueError('ERROR: Shape not recognized! Must be "L", "G", or "LG".')
     for sysct,(eachd,hmat) in enumerate(zip(d_in,Hlist)):
-        # Note sure if I should use eigh for Hermitian again
         [D,U]=np.linalg.eig(hmat.HAB)
         val=2**(2-hmat.nspins)
         Fxy=hmat.F[0]+1j*hmat.F[1]
@@ -416,15 +514,10 @@ def sim_readout(d_in,Hlist,npts,sw,linewidth,rcvPhase=0,shape='L',center_freq_pp
         out_parts.append(val*fidtmp*decay)
     d_out=sim_evolve(d_in,Hlist,npts*deltat)
     # Combine the output FIDs from the different parts of the spin system
-    # There is an apostrophe in the Matlab code that I missed for the longest 
-    # time (this is conjugate transpose in Matlab. Since this is a 1D array,
-    # that's just the conjugate). That's why I had spectra that were reversed
-    # in the left-right direction.
+    # Note that you need to take the conjugate transpose for the data to be
+    # correct in the spectral domain.
     outfids=sum(out_parts,start=0*out_parts[0]).conj()
-    
-    # Can have te and tr as input arguments??
-    # I can have saved the nucleus in the Hamiltonian for use here??? Here it needs to be a list
-    out1=FID(outfids,sw,1*Hlist[0]._Bfield*Hlist[0]._gamma,te=0,tr=0,sequence='simulated',nucleus=[hmat._nucleus for hmat in Hlist],dims=['t'],center_freq_ppm=center_freq_ppm)
+    out1=FID(outfids,sw,1*Hlist[0]._Bfield*Hlist[0]._gamma,te=0,tr=0,sequence='simulated',nucleus=Hlist[0]._nucleus,dims=['t'],center_freq_ppm=center_freq_ppm)
     return out1,d_out
         
 def sim_rotate(d_in,Hlist,anglein=90,whichax='x'):

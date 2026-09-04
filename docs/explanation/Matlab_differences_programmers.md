@@ -357,3 +357,14 @@ Here, the '...' used in the last line is interpreted as "replace all missing dim
 An example of the slice(None) usage can be seen in op_takeaverages. An example of the '...' can be see in op_getLW.
 
 Sometimes it is also easier to reshape into a 2D array, perform the operation along the desired dimension, then reshape back into the original size.
+
+# General Python differences from Matlab
+In addition to some of the reserved words mentioned above, and the return argument issue, Python uses the engineering convention of j representing the imaginary component of complex numbers. Matlab accepts either i or j. If you are writing function to manipulate complex data (fids, spectra or otherwise), be aware that only j will be accepted.
+
+One other thing to be aware of is that Matlab has the apostrophe operator that can go on the end of arrays to transpose them.
+```matlab
+A=reshape(1:12,[3,4])
+A'
+% outputs a 4x3 array
+```
+If you are used to working with real numbers, you may think of this as the transpose operator. However, if you look in the documentation, this operator is actually the conjugate transpose. There is no equivalent operator in numpy: there are separate transpose and conj functions. Be aware that, in the case of complex data (eg. numpy arrays containing complex fid or spectral data), places where you might use an ' in Matlab will require you to explicitly use np.conj() in addition to np.transpose(). (This can be confusing when looking at functions like sim_readout, for example, where Matlab has a line that reads out.fids=out.fids'. At first it seems like this might be because Matlab explicitly forces 2D arrays and so ' will convert a column vector of size npts x 1 to a row vector of 1 x npts. And this line seems unnecessary in Python, where the array is explicitly 1D. However, this line has a second purpose, which is to take the complex conjugate of the data (indeed, the fids array could have just been defined as a row vector to start with if that mattered). It is true that you do not need the transpose but you do need to write in the complex conjugate that this line represents or else your spectra will all appear flipped in the frequency domain.
