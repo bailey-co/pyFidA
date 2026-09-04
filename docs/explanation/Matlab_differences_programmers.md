@@ -352,4 +352,8 @@ myarray[tuple(myslice)]
 myarray[0,...]
 # Equivalent to the above.
 ```
-Here, the '...' used in the last line is interpreted as "replace all missing dimensions with ':'." The ellipsis can also be used at the start of the brackets or the middle to fill in any dimensions that aren't defined. (More on [the use of '...' with numpy arrays]())
+Here, the '...' used in the last line is interpreted as "replace all missing dimensions with ':'." The ellipsis can also be used at the start of the brackets or the middle to fill in any dimensions that aren't defined. (More on [the use of '...' with numpy arrays](https://stackoverflow.com/a/773472)).
+
+An example of the slice(None) usage can be seen in op_takeaverages. An example of the '...' can be see in op_getLW.
+
+Sometimes it is also easier to reshape into a 2D array, perform the operation along the desired dimension, then reshape back into the original size.

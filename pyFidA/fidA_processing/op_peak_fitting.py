@@ -246,17 +246,13 @@ def op_integrate(indat,ppmmin,ppmmax,mode='re'):
         Estiamted area under the curve for the desired frequency range.
 
     """
-    whichpts=[slice(None)]*indat.ndim
-    if indat.ppm[0]<indat.ppm[-1]:
-        whichpts[indat.dims['t']]=slice(np.flatnonzero(indat.ppm>ppmmin)[0],np.flatnonzero(indat.ppm>=ppmmax)[0]-1)
-    else:
-        whichpts[indat.dims['t']]=slice(np.flatnonzero(indat.ppm<=ppmmax)[0]+1,np.flatnonzero(indat.ppm<ppmmin)[0])
+    whichpts=np.flatnonzero(np.logical_and(indat.ppm>ppmmin,indat.ppm<ppmmax))
     if mode=='re':
-        intvals=np.sum(np.real(indat.specs[tuple(whichpts)]),axis=indat.dims['t'])
+        intvals=np.sum(np.real(indat.specs[whichpts,...]),axis=indat.dims['t'])
     elif mode=='im':
-        intvals=np.sum(np.imag(indat.specs[tuple(whichpts)]),axis=indat.dims['t'])
+        intvals=np.sum(np.imag(indat.specs[whichpts,...]),axis=indat.dims['t'])
     elif mode=='mag':
-        intvals=np.sum(np.abs(indat.specs[tuple(whichpts)]),axis=indat.dims['t'])
+        intvals=np.sum(np.abs(indat.specs[whichpts,...]),axis=indat.dims['t'])
     else:
         raise ValueError("ERROR: Mode not recognized. Must be 're','im' or 'mag'. Aborting!")
     return intvals

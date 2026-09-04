@@ -17,13 +17,9 @@ def op_getLW(indat,Refppmmin=4.4,Refppmmax=5.0,zpfactor=8,suppressPlots=True,met
     # Matlab default is suppressPlots=False but this gets messy if you run on 250
     # individual averages so I've set the default as True instead
     indat=op_zeropad(indat,zpfactor)
-    ppmwindow=indat.ppm[np.logical_and(indat.ppm>Refppmmin,indat.ppm<Refppmmax)]
-    whichpts=[slice(None)]*indat.ndim
-    if indat.ppm[0]<indat.ppm[-1]:
-        whichpts[indat.dims['t']]=slice(np.nonzero(indat.ppm>Refppmmin)[0][0],np.nonzero(indat.ppm>=Refppmmax)[0][0])
-    else:
-        whichpts[indat.dims['t']]=slice(np.nonzero(indat.ppm<=Refppmmax)[0][0],np.nonzero(indat.ppm<Refppmmin)[0][0])
-    Refwindow=indat.specs[tuple(whichpts)]
+    whichpts=np.flatnonzero(np.logical_and(indat.ppm>Refppmmin,indat.ppm<Refppmmax))
+    ppmwindow=indat.ppm[whichpts]
+    Refwindow=indat.specs[whichpts,...]
     # In order to generalize to FIDs with multiple dimensions, I think the easiest
     # is just to put all averages/coils/etc into the second dimension
     oldsz=Refwindow.shape
@@ -32,7 +28,7 @@ def op_getLW(indat,Refppmmin=4.4,Refppmmax=5.0,zpfactor=8,suppressPlots=True,met
     if not suppressPlots:
         f1,ax1=plt.subplots(1,1)
         ax1.plot(ppmwindow,np.abs(np.real(Refwindow)),'.',label='data')
-    # METHOD 1:  ACTUALLY MEAUSURE FWHM OF WATER PEAK
+    # METHOD 1:  MEAUSURE FWHM OF PEAK FROM DATA
     if method==1 or method==0:
         # argmax will find the first instance of True.
         gtHalfMax_a=np.argmax(np.abs(np.real(newref))>=0.5*maxRef,axis=0)
@@ -99,12 +95,8 @@ def op_getLW(indat,Refppmmin=4.4,Refppmmax=5.0,zpfactor=8,suppressPlots=True,met
 
 def op_getPeakHeight(indat,ppmmin=1.8,ppmmax=2.2):
     # Differs from Matlab somewhat in order to allow multiple dimensions
-    whichpts=[slice(None)]*indat.ndim
-    if indat.ppm[0]<indat.ppm[-1]:
-        whichpts[indat.dims['t']]=slice(np.nonzero(indat.ppm>ppmmin)[0][0],np.nonzero(indat.ppm>=ppmmax)[0][0]-1)
-    else:
-        whichpts[indat.dims['t']]=slice(np.nonzero(indat.ppm<=ppmmax)[0][0]+1,np.nonzero(indat.ppm<ppmmin)[0][0])
-    peak_window=indat.specs[tuple(whichpts)]
+    whichpts=np.flatnonzero(np.logical_and(indat.ppm>ppmmin,indat.ppm<ppmmax))
+    peak_window=indat.specs[whichpts,...]
     ht=np.amax(np.abs(peak_window),axis=0)
     return ht
 
@@ -117,11 +109,9 @@ def op_getSNR(indat,ppmmin=1.8,ppmmax=2.2,noiseppmmin=-2,noiseppmmax=0,suppressP
         noiseppmmin=float(input('input lower ppm limit for noise: '))
         noiseppmmax=float(input('input upper ppm limit for noise: '))
     # Now find the standard deviation of the noise
-    whichpts=[slice(None)]*indat.ndim
-    tslicepts=np.flatnonzero((indat.ppm<=noiseppmmax)*(indat.ppm>noiseppmmin))
-    whichpts[indat.dims['t']]=slice(tslicepts[0],tslicepts[-1])
-    noisewindow=indat.specs[tuple(whichpts)]
-    ppmwindow2=indat.ppm[whichpts[0]]
+    whichpts=np.flatnonzero(np.logical_and(indat.ppm>noiseppmmin,indat.ppm<=noiseppmmax))
+    noisewindow=indat.specs[whichpts,...]
+    ppmwindow2=indat.ppm[whichpts]
     oldsz=noisewindow.shape
     newnoisewindow=np.reshape(noisewindow,[noisewindow.shape[0],-1])
     noisevals=np.zeros_like(newnoisewindow)
