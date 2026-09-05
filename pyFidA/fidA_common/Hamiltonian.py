@@ -128,7 +128,7 @@ class Hamiltonian(object):
         for dirct,base_i in enumerate(base_I):
             # Iy is imaginary.
             if dirct==1:
-                Imats.append(np.zeros([2**self.nspins,2**self.nspins,self.nspins],dtype=np.complex))
+                Imats.append(np.zeros([2**self.nspins,2**self.nspins,self.nspins],dtype=complex))
             else:
                 Imats.append(np.zeros([2**self.nspins,2**self.nspins,self.nspins]))
             # Loop through all spins
