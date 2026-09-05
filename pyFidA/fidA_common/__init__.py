@@ -9,6 +9,8 @@ Created on Thu Jun  4 09:46:32 2026
 # Note that this ordering needs to be preserved with GAMMA_DICT imported first
 # since it is used in later imports. eg. BlochSimulator import from 
 # pyFidA.fidA_common without referencing the constants toolbox
+# phase is imported here but won't be re-exported at the top level of pyFidA
+# because of potential namespace clobbering issues
 from pyFidA.fidA_common.constants import GAMMA_DICT
 from pyFidA.fidA_common.common_functions import (
     fid_from_specs,

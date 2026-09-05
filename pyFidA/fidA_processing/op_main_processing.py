@@ -1499,7 +1499,7 @@ def op_ppmref(indat,ppmmin,ppmmax,ppmrefval,dimNum=0,zpfact=10,return_extra_args
         print('Data already zeropadded. Using existing zero padding.')
         in_zp=indat.copy()
     # find the ppm of the maximum peak magnitude within a given range
-    ppmidx=np.nonzero(np.logical_and(in_zp.ppm>=ppmmin,in_zp.ppm<=ppmmax))[0]
+    ppmidx=np.flatnonzero(np.logical_and(in_zp.ppm>=ppmmin,in_zp.ppm<=ppmmax))
     whichslice[0]=slice(ppmidx[0],ppmidx[-1])
     specmask=np.zeros_like(np.real(in_zp.specs))
     specmask[tuple(whichslice)]=1
@@ -1510,8 +1510,8 @@ def op_ppmref(indat,ppmmin,ppmmax,ppmrefval,dimNum=0,zpfact=10,return_extra_args
     # whereas here it can be a matrix. Need to expand dimensions before broadcasting
     outdat=indat.copy()
     frqfull=np.tile(frqshift,[indat.sz[0]]+[1]*frqshift.ndim)
-    # Need to deal with subspecs. In the original function, all subspecs are 
-    # shifted even though only one subspec is used to determine the frequency shift
+    # Even though only one subspec was used to determine the shift, the result
+    # is applied to all subspecs
     if 'subspecs' not in indat:
         newfid=(indat.fids.T*np.exp(-1j*indat.t*frqfull.T*2*np.pi)).T
     else:
@@ -1519,7 +1519,7 @@ def op_ppmref(indat,ppmmin,ppmmax,ppmrefval,dimNum=0,zpfact=10,return_extra_args
         whichslice[0]=slice(None)
         for specct in range(indat.subspecs):
             whichslice[indat.dims['subspecs']]=specct
-        newfid[tuple(whichslice)]=(indat.fids[tuple(whichslice)].T*np.exp(-1j*indat.t*frqfull.T*2*np.pi)).T
+            newfid[tuple(whichslice)]=(indat.fids[tuple(whichslice)].T*np.exp(-1j*indat.t*frqfull.T*2*np.pi)).T
     outdat.fids=newfid
     return outdat,frqshift
 
@@ -1557,7 +1557,7 @@ def get_zmetric(indat,which_domain):
     if which_domain=='t':
         datmat=indat.fids.copy()
         tmax=0.4
-        datslice[1]=slice(0,np.nonzero(indat.t>tmax)[0][0])
+        datslice[1]=slice(0,np.flatnonzero(indat.t>tmax)[0])
     elif which_domain=='f':
         filt=10
         datmat=op_filter(indat,filt,return_extra_args=False).specs.copy()

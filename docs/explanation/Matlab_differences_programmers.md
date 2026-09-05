@@ -233,9 +233,9 @@ In Matlab, these are first handled in io_loadRFwaveform before creating the stru
 ### Off-resonance pulses (and f0 for dual-band pulses)
 
 # Peak-fitting functions
-Some differences are covered in the [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape). This section will cover how the translation from Matlab was implemented, for users who want to implement their own lineshape or fitting functions.
+Some differences are covered in the [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape). The main changes are implmented in the pyFidA.fidA_processing.curvefit_tools.py module and can be used at a high-level simpy by calling the nlinfit function from this toolbox with the appropriately-formatted input parameters. This section will cover how the translation from Matlab was implemented within that toolbox, which may be useful for users who want to understand how to implement their own lineshape or fitting functions.
 
-## The curvefit_tools module for fitting argument order
+## The curvefit_tools module to change fitting argument order
 Matlab fid-A uses Matlab's nlinfit function for op_peakFit. Any lineshape function that is used with nlinfit (eg. op_lorentz) is expected to have two arguments, with the lineshape parameters entered as one array, followed by the x-values (frequencies in ppm for fid-A):
 ```matlab
 % In Matlab
@@ -245,7 +245,7 @@ y=op_lorentz(pars,ppm)
 parsFit=nlinfit(ppm,real(spec'),@op_voigt_linbas_real_nest,parsGuess)
 ```
 
-One close equivalent to nlinfit in Python is scipy.optimize.curve_fit, but this expects the fitting function arguments in a different format. Firstly, the x-values are the first argument. Secondly, the parameters, which follow the x-values, are not entered as a single list, but rather as separate arguments:
+One close equivalent to nlinfit in Python is scipy.optimize.curve_fit, but this expects the fitting function arguments in a different format. Firstly, the x-values are the first argument. Secondly, the parameters, which follow the x-values, are entered as separate arguments in the fitting function, although they are entered in a list when passed to scipy.optimize.curve_fit:
 ```python
 # in Python
 y=pyFidA.op_lorentz(ppm,par1,par2,par3)
@@ -255,39 +255,42 @@ parsList=[par1_guess, par2_guess, par3_guess]
 parsFit, pcov=scipy.optimize.curve_fit(op_voigt_linbas_real, ppm, real(spec), parsList)
 ```
 
-While this is not necessarily important for users coming directly to pyFidA, it would mean that any users copying scripts from Matlab that contained lineshape function calls like op_lorentz(pars,ppm) would need to alter the input arguments in each of these calls if these lineshape functions were designed to be used directly as the fitting function sent to scipy.optimize.curve_fit for fitting.
+While this is not necessarily important for users coming directly to pyFidA, it would mean that using scipy.optimize.curve_fit directly would require any users copying lineshape calls or peak-fitting functions from Matlab, like op_lorentz(pars,ppm), to alter the input arguments in each of these calls.
 
 Instead, pyFidA has a curvefit_tool.py module with an nlinfit function that swaps the order of the arguments around and unpacks the pars parameters using the \* notation for lists before calling scipy.optimize.curvefit. This means that users can make use of lineshape functions that are constructed or called in the same way as Matlab (pars before ppm). If you are constructing your own lineshape functions to use with op_peakFit, they should follow this argument order. And, if you are constructing your own peak-fitting function that makes use of existing pyFidA lineshapes, you should import nlinfit from pyFidA.fidA_processing.curvefit_tools.py and use this as the fitting function.
 
 ## The curvefit_tools module for fitting multiple peaks
 As described in [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape2), op_peakFit can fit multiple peaks with a given lineshape by entering vectors (1D numpy arrays or lists) for the amplitudes, linewidths and center frequencies of each peak. Each element in a vector will represent one peak, but these need to be separated out before passing to scipy.optimize.curvefit. This functionality is also contained within the curvefit_tools module.
 
-The documentation in the module contains the full details. A summary is that, when nlinfit is called, it first takes the lineshape function (eg. op_lorentz) and parameter list that are entered, and it creates three new functions. The first is a new version of the lineshape function that can accept a flattened list of input parameters. The second is a function that can reformat the original parameter list, where some elements are vectors that represent multiple peaks, into a flat list. This new lineshape function and flat list are the ones sent to scipy.optimize.curve_fit to obtain the fit parameters and the new lineshape function is able to reshape the flat list into the format accepted by the original lineshape function (eg. op_lorentz), which is then called. The resulting fit parameters are then reshaped back into the original shape, with vectors representing the amplitudes/linewidths/centre frequencies for multiple peaks, by the third function that is constructed form the original lineshape function and parameter list. These second and third functions are also used to reshape any parameter bounds that are specified, meaning that the bounds should be entered by the user in the same format as the initial parameter guess (with vectors specifying multiple peaks); bounds are optional.
+The documentation in the module contains the full details. A summary is that, when nlinfit is called, it first takes the lineshape function (eg. op_lorentz) and parameter list that are entered, and it creates three new functions.
+* The first is a new version of the lineshape function that can accept a flattened list of input parameters. This function can then be passed to alter_func_args to switch the order of the input arguments around and unpack the parameter list into separate parameters, as described in the function above. The output function from alter_func_args is then the function that can be used with scipy.optimize.curve_fit with a flattened parameters list.
+* The second function reformats the original parameter list, where some elements are vectors that represent multiple peaks and some elements may be complex numbers, into a flat list of real numbers. (ie. complex numbers are broken up into one parameter for the real component and one for the imaginary component, to be fit separately). This is the parameter list format that needs to be unpacked to send to scipy.optimize.curve_fit, along with the function from the previous step. This function is also used to reformat any parameter bounds that are entered, meaning that the bounds should be entered by the user in the same format as the initial parameter guess (with vectors specifying multiple peaks, although complex numbers will be identified from the initial paraemters rather than the bounds); bounds are optional.
+* The final function is then needed to reformat the fitted parameters, the output from scipy.optimize.curve_fit, back into the format accepted by the original lineshape function (eg. op_lorentz), with vectors representing the amplitudes/linewidths/centre frequencies for multiple peaks.
 
-This means that you can create your own lineshape functions that will fit multiple peaks simply by using the nlinfit function from the pyFidA.fidA_processing.curvefit_tools.py module. The amplitudes, etc. for each peak just need to be entered as lists or numpy arrays and nlinfit will flatten them before calling the fitting function, then re-format the flattened list back to its original format, with any lists or numpy arrays contained within it. This assumes, of course, that you have constructed your lineshape function to deal with these vectors appropriately. See op_lorentz_linbas for an example. Your lineshape functions can also be used with op_peakFit in many cases, although some alterations to op_peakFit will be needed for full functionality (see next section).
-
-## Lineshape functions return complex data
-In Matlab, some of the lineshape functions (eg. op_lorentz_linbas) take the real part of the spectrum before returning values. This is useful for fitting because optimization algorithms are typically designed to work with real-valued data (this is true for scipy.optimize.curve_fit as well), but it means that these functions do not generate a complete spectrum, with the imaginary part of the spectrum. In Matlab, op_peakFit deals with this by having two separate voigt functions: one that is used for fitting and yields real values and is compared with the real part of the experimental spectrum, and a second function that is used to generate the complex-valued spectrum from fit parameters.
-
-In contrast, in pyFidA, the nlinfit function from pyFidA.fidA_processing.curvefit.py can accept complex y-values and a function that returns complex-valued data. However, it does not fit to the complex data even when this is the input. Instead, adjusts them so that the real values are compared. This allows the same function to be used for fitting with nlinfit and for generating the fitted y-values from the optimized fit parameters.
-
-Note that nlinfit does not take the real part of complex data, in case users unintentionally use nlinfit with complex data. However, the behaviour is controlled by setting real_nest=True in nlinfit and this is the setting that is used in op_peakFit, so any fitting done through that function can deal with functions that return complex values.
-
-More specifically, when real_nest=True in nlinfit, the function will be wrapped to create a new function that returns only the real portion of the output and this new function is what will be sent to scipy.optimize.curvefit. In addition, the real part of the ydata argument sent to nlinfit will be taken.
+This means that you can create your own lineshape functions that will fit multiple peaks simply by using the nlinfit function from the pyFidA.fidA_processing.curvefit_tools.py module. The amplitudes, etc. for each peak just need to be entered as lists or numpy arrays and nlinfit will flatten them before calling the fitting function, then re-format the flattened list back to its original format, with any lists or numpy arrays contained within it. Similarly, any complex parameters will be identified and split into real and imaginary components. This assumes, of course, that you have constructed your lineshape function to deal with these vectors appropriately. See op_lorentz_linbas for an example. Your lineshape functions can also be used with op_peakFit in many cases, although some alterations to op_peakFit will be needed for full functionality (see next section).
 
 <a name="lineshape"></a>
 ## Using op_peakFit with your own lineshape functions (including Hz to ppm conversion)
 As described at the end of the "More flexibility in lineshape functions" section of [Matlab Differences for Basic Users](./Matlab_differences_basic.md#lineshape2), users can define their own functions for use with op_peakFit, but there are some restrictions on this. Firstly, only two input arguments are allowed and they must be in the order of [pars, xvals]. Secondly, there is no "smart" default initial guess when one is not provided through parsGuess. Finally, it is not possible to set parameter_bounds=True in order to automatically generate parameter bounds.
 
-This is because op_peakFit does not "know" anything about user-provided functions. If you plan to use a function that you have defined regularly, you may wish to update op_peakFit with good defaults. Staring at the line "if peaktype=='lorentz':" in op_peakFit, you can see how string options relate to particular functions and defaults. Three pieces of information are needed:
-* fitfunc: the name of the function to be called when a particular string is entered for 'peaktype'
-* FWHMpars: the indices of the parameters in parsGuess that are linewidths in Hz. This is only needed if your function takes linewidths in Hz and x-values in ppm, with no explicit conversion between them. If you are converting linewidths to ppm in your fitting function (because, for example, you always fit proton data from 3 T and therefore can hard-code the conversion into your function), you can enter an empty list, FWHMpars=[].
+This is because op_peakFit does not "know" anything about user-provided functions. If you plan to regularly use a function that you have defined yourself, you may wish to update op_peakFit with good defaults. Staring at the line "if peaktype=='lorentz':" in op_peakFit, you can see how string options relate to particular functions and defaults. Three pieces of information are needed:
+* fitfunc: the name of the function to be called when a particular string is entered for peaktype
+* FWHMpars: the indices of the parameters in parsGuess that are linewidths in Hz. This is only needed if your function takes linewidths in ppm and x-values in ppm, but you expect users to enter an initial guess in Hz. If you are converting linewidths to ppm in your fitting function (because, for example, you always fit proton data from 3 T and therefore can hard-code the conversion into your function), you can enter an empty list, FWHMpars=[].
 * parsGuess: a vector of initial guesses to be used when no parsGuess input argument is given.
 
 You may also wish to update the default bounds that will be assigned when parameter_bounds=True for your function. You can see examples starting at the line "if peaktype=='voigt':" where lb and ub are assigned. Note that, if you have optional parameters in your function, there is some nuance to how you create these bounds in order to ensure that the length matches parsGuess. It is only necessary to assign bounds for one peak; these values will be repeated for every peak in a multi-peak case.
 
+## Fitting with only real-valued y-data
+In Matlab, some of the lineshape functions (eg. op_lorentz_linbas) take the real part of the spectrum before returning values. This is useful for fitting because optimization algorithms are typically designed to work with real-valued data (this is true for scipy.optimize.curve_fit as well), but it means that these functions do not generate a complete spectrum, with the imaginary data included. In Matlab, op_peakFit deals with this by having two separate voigt functions: one that is used for fitting and yields real values and is compared with the real part of the experimental spectrum, and a second function that is used to generate the complex-valued spectrum from fit parameters.
+
+In contrast, in pyFidA, the nlinfit function from pyFidA.fidA_processing.curvefit.py checks to see if the y-values that are entered for comparison with the fit are complex. If they are complex, then the y-values are re-ordered into a 1D real array of twice the length, with real values followed by imaginary values. And the new function that was created to deal with parameter format (described above in the 3 functions created at the start of nlinfit) also alters the output of the lineshape function, changing it to be a 1D real array where the complex output is reordered into real components followed by imaginary. If the output of the lineshape function is real but the y-values entered for comparison are comparson are real then the warning is given and only the real component of the lineshape function output is used.
+
+Because op_peakFit takes a FID object, where the complex spectrum is used to generate the y-values, it is generally expected that this complex data will be compared to the complex output of the lineshape function. However, by setting real_ydata=True in op_peakFit, the real component of the spectrum will be taken before calling nlinfit, meaning that only the real portion of the data will be fit. In general, it is better to use the full data (twice as many data points with the same noise level) but taking the real part more closely replicates Matlab's function. It could also be the case that some users have lineshape functions that only generate real values for comparison, and this would allow those functions to be used.
+
+This setup allows means that lineshape functions do not have to have two versions - one that generates real values for fitting and one that generates complex values for full spectra. Instead, nlinfit generates the wrapper function that deals with complex data automatically, so that the same function can be used for fitting and for generating the complex spectrum values from the optimized fit parameters.
+
 ## Minor changes in peak-fitting functions to avoid repeated code
-Where possible, pyFidA functions are wrappers to avoid repeating code and so that changes can be more easily implemented in one place. For example, op_creFit is a wrapper of op_peakFit with certain initial parameter guesses and constraints. The op_lorentz function is a wrapper of op_lorentz_linbas with the slope value fixed to 0. And so on.
+Where possible, pyFidA functions are wrappers to avoid repeating code and so that changes can be more easily implemented in one place. For example, op_creFit is a wrapper of op_peakFit with certain initial parameter guesses and constraints. The op_lorentz function is a wrapper of op_lorentz_linbas with the slope value fixed to 0.
 
 # Return arguments
 As explained in [Matlab Differences for Basic Users](Matlab_differences_basic.md#returnargs), Python is unable to alter the number of arguments returned based on the user call. In pyFidA, the choice to return the first argument versus all arguments for selected processing functions is done with the @alter_return_args decorator.
@@ -307,3 +310,61 @@ def my_func(input1,input2,input3=0,return_extra_args=None):
 ```
 
 Note that the allow_chaining and stop_chaining functions, as well as the class instance holding the default return behaviour, are also in pyFidA.fidA_processing.alter_return_args.py. If you import the entire pyFidA package when making use of your decorated function, these functions and the default will be available. However, if you have imported only a sub-package, like fidA_sim, you may need to import the fidA_processing sub-package in order to access these other functions.
+
+# Simulations
+Not a big change (and described somewhat in [Basic Matlab Differences](Matlab_differences_basic.md)) but the spin systems are dicts (or lists of dicts) and the Hamiltonian and density matrix for a list of dicts are also lists, with each element corresponding to that part of the spin system. The Hamiltonian object replaces that Matlab struct. But the basic workings of the simulation functions are the same.
+
+# Generalizability
+Somewhat mentioned in Matlab_differences_basic.md, but could expand details here. The ability to create functions that operate on data with variable numbers of dimensions (depending on whether averages, coils, MRSI, indirect dimensions, etc) are present, relies heavily on two main numpy/Python features.
+
+The first is [numpy's broadcasting capability](https://numpy.org/doc/stable/user/basics.broadcasting), which will automatically expand an array size in order to perform an operation with another array of a different size. There are particular rules around which array dimensions will be expanded, as explained at the link. You can see an example in op_filter, where a 1D exponential vector intended to be multiplied across the time domain, is applied to indat.fids, which may have many other dimensions. There is no need to use np.tile (numpy's equivalent of repmat) or to write out separate cases for different indat.fids shapes with ngrid. By transposing fids so that 't' is the last dimension, the multiplication with the Lorentzian filter in the time dimension will automatically be repeated for every other dimension (and then the result needs to be transposed back to match the original dimension order).
+
+The second tool is the slice object and, in particular, slice(None) and Ellipsis constant (or, more commonly, the '...' notation). An array is often sliced using the ":" operator and ints. For example, if myarray had shape (2048,4,250), you could get the very first element by myarray[0,0,0]. If you wanted all elements from the first dimension, but only in the first position of other dimensions, you would use myarray[:,0,0]. If you wanted the first ten elements, that's myarray[:10,0,0]. But how would this work if you don't know how many dimensions myarray has? In the case of selecting the first element, you can use lists:
+```python
+myslice=[0]*myarray.ndim
+myarray[tuple(myslice)]
+# Will return the element at (0) if myarray is a 1D array
+# Will return the element at (0,0) if myarray is 2D
+# Will return the element at (0,0,0) if my array is 3D, etc.
+```
+Note that the slices should be entered as a tuple rather than a list in order to be correctly interepreted.
+
+The slice(None) call can be used to replace any dimension where you want to return all elements from that particular dimension. Alternatively, slice(10) could be used to return the first ten items. The slice object allows for start, stop and step values, similar to the ":" notation but start will default to 0 and a single input argument will be teh stop value. [More on the slice object](https://docs.python.org/3/library/functions.html#slice)
+```python
+myslice=[0]*myarray.ndim
+myslice[0]=slice(None)
+myarray[tuple(myslice)]
+# Will return myarray[:,0,0] if myarray has 3 dimensions
+
+myslice[0]=slice(10)
+myarray[tuple(mylsice)]
+# Will return myarray[:10,0,0] if myarray has 3 dimensions
+
+# It is often useful to do the opposite: eg. if you had an 
+# fid and you wanted to know the first time point for all 
+# averages and all coils
+myslice=[slice(None)]*myarray.ndim
+myslice[0]=0
+myarray[tuple(myslice)]
+# Returns the first element in the first dimension across
+# all other dimensions. For this particular case, you can
+# also use the Ellipsis constant:
+myarray[0,...]
+# Equivalent to the above.
+```
+Here, the '...' used in the last line is interpreted as "replace all missing dimensions with ':'." The ellipsis can also be used at the start of the brackets or the middle to fill in any dimensions that aren't defined. (More on [the use of '...' with numpy arrays](https://stackoverflow.com/a/773472)).
+
+An example of the slice(None) usage can be seen in op_takeaverages. An example of the '...' can be see in op_getLW.
+
+Sometimes it is also easier to reshape into a 2D array, perform the operation along the desired dimension, then reshape back into the original size.
+
+# General Python differences from Matlab
+In addition to some of the reserved words mentioned above, and the return argument issue, Python uses the engineering convention of j representing the imaginary component of complex numbers. Matlab accepts either i or j. If you are writing function to manipulate complex data (fids, spectra or otherwise), be aware that only j will be accepted.
+
+One other thing to be aware of is that Matlab has the apostrophe operator that can go on the end of arrays to transpose them.
+```matlab
+A=reshape(1:12,[3,4])
+A'
+% outputs a 4x3 array
+```
+If you are used to working with real numbers, you may think of this as the transpose operator. However, if you look in the documentation, this operator is actually the conjugate transpose. There is no equivalent operator in numpy: there are separate transpose and conj functions. Be aware that, in the case of complex data (eg. numpy arrays containing complex fid or spectral data), places where you might use an ' in Matlab will require you to explicitly use np.conj() in addition to np.transpose(). (This can be confusing when looking at functions like sim_readout, for example, where Matlab has a line that reads out.fids=out.fids'. At first it seems like this might be because Matlab explicitly forces 2D arrays and so ' will convert a column vector of size npts x 1 to a row vector of 1 x npts. And this line seems unnecessary in Python, where the array is explicitly 1D. However, this line has a second purpose, which is to take the complex conjugate of the data (indeed, the fids array could have just been defined as a row vector to start with if that mattered). It is true that you do not need the transpose but you do need to write in the complex conjugate that this line represents or else your spectra will all appear flipped in the frequency domain.

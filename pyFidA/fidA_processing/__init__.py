@@ -2,23 +2,20 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jun  5 14:28:30 2026
+pyFidA.fidA_processing.__init__.py
 
-@author: nearlabmacbook1
+@author: Colleen Bailey (@cbailey@sri.utoronto.ca)
+
+Note that the order of import matters because some modules reference others.
+alter_return_args is needed for any module where the decorator is used.
+op_common_processing contains the functions most often used in other modules.
 """
-
-# Note that the order of import matters because some modules reference others.
-# alter_return_args is needed for any module where the decorator is used.
-# op_common_processing contains the functions most often used in other modules.
-# I wanted to separate out all of the functions that align scans, averages, etc.
-# but these were too dependent on other functions.
 
 from pyFidA.fidA_processing.alter_return_args import (
     allow_chaining,
     stop_chaining,
     )
 
-# phase is imported here but won't be re-exported at the top level of pyFidA
-# because of potential namespace clobbering issues
 from pyFidA.fidA_processing.op_common_processing import (
     add_phase,
     add_phase1,

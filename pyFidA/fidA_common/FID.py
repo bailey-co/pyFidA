@@ -442,10 +442,7 @@ class FID(object):
             [f1,plotax]=plt.subplots(1,1)
         if self.fids.ndim>2:
             print("More than 2 dimensions. Plotting first 2 dimensions ({:s}, {:s}) only.".format(self._dimlist[0],self._dimlist[1]))
-            whichslice=[0]*self.ndim
-            whichslice[0]=slice(None)
-            whichslice[1]=slice(None)
-            spec_for_plot=np.real(self.specs[tuple(whichslice)])
+            spec_for_plot=np.real(self.specs[0,0,...])
         else:
             spec_for_plot=np.real(self.specs)
         plotax.plot(self.ppm,spec_for_plot,**kwargs)
