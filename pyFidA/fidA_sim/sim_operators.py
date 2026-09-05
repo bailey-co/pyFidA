@@ -35,9 +35,9 @@ Functions:
 
 import numpy as np
 from scipy.linalg import expm
-from pyFidA.fidA_common import Hamiltonian, FID
+from pyFidA.fidA_common import Hamiltonian, FID, FidAWarning
 from pyFidA import io_loadRFwaveform
-
+import warnings
 
 def check_angle_format(anglein,Hlist):
     """
@@ -259,7 +259,7 @@ def sim_evolve(d_in,Hlist,t):
         d_out.append(np.dot(np.dot(p.conj().T,dmat),p))
     return d_out
 
-def sim_excite(d_in,Hlist,whichax,anglein=90):
+def sim_excite(d_in,Hlist,whichax='x',anglein=90):
     """
     Simulate the effect of an ideal (instantaneous) excitation pulse on the
     density matrix.
@@ -270,8 +270,8 @@ def sim_excite(d_in,Hlist,whichax,anglein=90):
         Input density matrices.
     Hlist : list of pyFidA.Hamiltonian objects
         Hamiltonian operator(s) for the spin system.
-    whichax : 'x' or 'y'
-        Axis of rotation.
+    whichax : 'x' or 'y', optional
+        Axis of rotation. The default is 'x'.
     anglein : float or numpy array or list, optional
         Flip angle of excitation in degrees. The angle can be the same for 
         every part of the spin system, or different for different spins, 
@@ -514,17 +514,40 @@ def sim_readout(d_in,Hlist,npts,sw,linewidth,rcvPhase=0,shape='L',center_freq_pp
         out_parts.append(val*fidtmp*decay)
     d_out=sim_evolve(d_in,Hlist,npts*deltat)
     # Combine the output FIDs from the different parts of the spin system
-    # Note that you need to take the conjugate transpose for the data to be
+    # Note that you need to take the complex conjugate for the data to be
     # correct in the spectral domain.
     outfids=sum(out_parts,start=0*out_parts[0]).conj()
     out1=FID(outfids,sw,1*Hlist[0]._Bfield*Hlist[0]._gamma,te=0,tr=0,sequence='simulated',nucleus=Hlist[0]._nucleus,dims=['t'],center_freq_ppm=center_freq_ppm)
     return out1,d_out
         
 def sim_rotate(d_in,Hlist,anglein=90,whichax='x'):
-    # This seems verysimilar to excite, but it doesn't diagonalize, which I am
-    # guessing means that this takes slightly longer. Also, this technically
-    # allows z rotation, which you wouldn't typically get with an rf pulse
-    
+    """
+    Simulates the effect of an ideal (instantaneous) rotation on the densty 
+    matrix. Similar to sim_excite but allows z rotation and doesn't 
+    diagonalize. Code is repeated rather than used as a implementing one 
+    function as wrapper for the other in case diagonalization is faster.
+
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrices.
+    Hlist : list of pyFidA.Hamiltonian objects
+        Hamiltonian operator(s) for the spin system.
+    anglein : float or numpy array or list, optional
+        Flip angle of excitation in degrees. The angle can be the same for 
+        every part of the spin system, or different for different spins, 
+        depending on the type/format that anglein is entered in. See docstring
+        of check_angle_format for more details. The default is 90.
+    whichax : 'x' or 'y' or 'z'
+        Axis of rotation. The default is 'x'.
+        
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Output density matrix following rf rotation.
+
+    """
     angle=check_angle_format(anglein, Hlist)
     if whichax.lower()=='x':
         whichdir=0
@@ -536,34 +559,44 @@ def sim_rotate(d_in,Hlist,anglein=90,whichax='x'):
     d_out=list()
     for eachd,hmat,eachang in zip(d_in,Hlist,angle):
         alpha=np.where(hmat.shifts>=30,0,eachang*np.pi/180)
-        # alpha will broadcast to match size of Ix or Iy, then can add over axis=2
-        rotMat=np.sum(alpha*hmat.Imats[whichdir],axis=2)
-        # In Matlab, phase*pi/180 is multiplied on the matrix for each spin, before
-        # addition, so you actually multiply by nspins*phase*pi/180, which doesn't
-        # seem quite right. I think that it should be pulled out of the sum so that
-        # the angle it just multiplied in once. This is how you can get ph_ax=90
-        # to match up with sim_excite with whichax='y'. So I've changed that here
-        # in Python from what was done in Matlab
+        rotMat=np.dot(hmat.Imats[whichdir],alpha)
         p=expm(1j*rotMat)
         d_out.append(np.dot(np.dot(p.conj().T,eachd),p))
     return d_out
 
 def sim_rotate_arbPh(d_in,Hlist,anglein=90,ph_ax=0):
-    # This code is basically the same as sim_excite_arbPh but the expm matrix
-    # exponentials have the 1j factor in so there is presumably a phase difference?
+    """
+    Simulates the effect of an ideal (instantaneous) rotation on the density
+    matrix. The phase of the rf pulse can be arbitrarily chosen and is 
+    implemented by rotating around z by the angle -ph_ax, then exciting around 
+    x by anglein, then rotating back around z by angle ph_ax. Similar to 
+    sim_excite_arbPh but allows z rotation and doesn't diagonalize.
+
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrices.
+    Hlist : list of pyFidA.Hamiltonian objects
+        Hamiltonian operator(s) for the spin system.
+    anglein : float or numpy array or list, optional
+        Flip angle of excitation in degrees. The angle can be the same for 
+        every part of the spin system, or different for different spins, 
+        depending on the type/format that anglein is entered in. See docstring
+        of check_angle_format for more details. The default is 90.
+    ph_ax : float, optional
+        Phase of rotation in degrees. 0 = 'x', 90 = 'y'. The default is 0.
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Output density matrix following rf rotation.
+
+    """
     angle=check_angle_format(anglein, Hlist)
-    
     d_out=list()
     for eachd,hmat,eachang in zip(d_in,Hlist,angle):
         alpha=np.where(hmat.shifts>=30,0,eachang*np.pi/180)
-        # alpha will broadcast to match size of Ix or Iy, then can add over axis=2
-        rotMat=np.sum(alpha*hmat.Imats[0],axis=2)
-        # In Matlab, phase*pi/180 is multiplied on the matrix for each spin, before
-        # addition, so you actually multiply by nspins*phase*pi/180, which doesn't
-        # seem quite right. I think that it should be pulled out of the sum so that
-        # the angle it just multiplied in once. This is how you can get ph_ax=90
-        # to match up with sim_excite with whichax='y'. So I've changed that here
-        # in Python from what was done in Matlab.
+        rotMat=np.dot(hmat.Imats[0],alpha)
         Rz=ph_ax*np.pi/180*np.sum(hmat.Imats[2],axis=2)
         p=expm(1j*Rz)
         q=expm(1j*rotMat)
@@ -573,50 +606,62 @@ def sim_rotate_arbPh(d_in,Hlist,anglein=90,ph_ax=0):
     return d_out
 
 def sim_shapedRF(d_in,Hlist,RFpulse,Tp,flipAngle,ph1=0,dfdx=0,grad=None,**pulse_kwargs):
-    # If RFpulse is a string, need to load
-    # I haven't included any extra arguments like Tp or nucleus here. Maybe I
-    # should. They would have to be arguments for sim_shapedRF and then be
-    # passed to these functions, but I think that gets confusing because then 
-    # sim_shapedRF has a bunch of arguments that aren't used in the "normal"
-    # case of passing RFpulse. For example, you pass an RFpulse that is designed
-    # for 1H and pass a nucleus of 13C and that nucleus argument is never used.
-    # The nucleus/gamma has very limited use anyway - it's just used to calculate
-    # the slice thickness from tbw for gradient-modulated pulses. Hardly seems
-    # worth the confusion. One thing that you could do is have **pulse_kwargs as
-    # the final argument in sim_shapedRF and then pass those on to RFpulse and
-    # that's probably clearer, but then I think that you want to pass Tp on 
-    # explicitly as well.
-    # OH. Wait. That's not exactly true. It is passed to the BlochSimulator and 
-    # it is used to calculate gradlist for gradient-modulated case. But then 
-    # gradlist is used to calculate phi for the z-rotation during evolution. The
-    # question then is whether the resulting tthk in cm*s could be obtained from
-    # a simple scaling by gamma or 1/gamma, or whether you need the gradient
-    # to be in the correct units. I think that you must need gradient in the 
-    # correct units because it's combined with f in Hz (ie. gyromagnetic ratio
-    # is already incorporated) but I haven't tested.
-    # NOTE: Because there are a number of matrix multiplications, it is desirable
-    # to avoid using the expanded waveform and use a more abbreviated form (if
-    # it exists). Hence why dt is calculated from RFpulse.waveform[:,2] rather
-    # than calling the expanded waveform
+    """
+    Simulates the effect of a shaped rf pulse on the density matrix. The 
+    temporal shape of the refocusing pulses is modelled as a series of N
+    rotations about the effective RF field (made up of a composite rotation
+    of -alpha around Y, -zeta around Z, 2*pi*gamma*Beff*dt around X, then 
+    rotate back around Z by zeta and Y by alpha), where N is the number of 
+    time points in the RF waveform. The angle alpha is the angle between the
+    transverse plane and Beff, while zeta is the azimuthal angle (the phase of
+    the rf). The code allows gradient-modulated pulses, as long as no value is
+    given for grad, a constant gradient.
+    
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrices.
+    Hlist : list of pyFidA.Hamiltonian objects
+        Hamiltonian operator(s) for the spin system.
+    RFpulse : file OR pyFidA.RF_pulse object
+        The RF pulse to use for the simulation or the filename of an RF pulse
+        to be loaded by pyFidA.io_loadRFwaveform.
+    Tp : float
+        Pulse duration in ms.
+    flipAngle : float
+        flipAngle of the RF pulse in degrees.
+    ph1 : float, optional
+        Phase of the RF pulse in degrees. The default is 0.
+    dfdx : float, optional
+        If simulating a frequency-selective pulse, this argument should be the
+        frequency offset in Hz. If simulating a slice-selective pulse, this
+        argument should be the position offset in cm. The default is 0.
+    grad : float, optional
+        Gradient strength in G/cm. Only used if RFpulse.isGM=False. The 
+        default is None.
+    **pulse_kwargs : optional
+        Additional keyword arguments to be passed to io_loadRFwaveform if 
+        RFpulse is a filename (offres, nucleus, suppress_plots).
+
+    Raises
+    ------
+    ValueError
+        Cannot enter grad value for gradient-modulated pulse.
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Output density matrix following shaped RF pulse excitation/refocusing.
+
+    """
     if type(RFpulse) is str:
-        if flipAngle<=110:
-            RFpulse=io_loadRFwaveform(RFpulse,'exc',Tp=Tp,**pulse_kwargs)
-        else:
-            RFpulse=io_loadRFwaveform(RFpulse,'inv',Tp=Tp,**pulse_kwargs)
-        # There is an issue here in Matlab. When RFpulse is a string, it decides
-        # Whether to make an exc or inv pulse based on the flipAngle. But then 
-        # it runs the w1max calculation with Tp*90, ie. assuming an exc type.
-        # If RFpulse is not a string but an RF struct, it runs with Tp*180, so
-        # assuming an inv pulse, even though no check is run on RF_struct.type
-    #RFpulse should be the pulse already. I don't know why the thing beside
-    #Tp is different for loading from a file??
-    if RFpulse.pulse_type=='exc':
-        w1max=(RFpulse.tw1*flipAngle)/(Tp*90)
-    elif RFpulse.pulse_type=='inv' or RFpulse.pulse_type=='ref':
-        w1max=(RFpulse.tw1*flipAngle)/(Tp*180)
-    else:
-        # One option here is to run the calibration for w1 for a 180 and then use that
-        raise ValueError('ERROR: Unknown pulse type. Only types exc, inv and ref types are implemented.')
+        RFpulse=io_loadRFwaveform(RFpulse,flipAngle,Tp=Tp,**pulse_kwargs)
+    # Allows pulses to be used for different flip angles than they may have
+    # been generated for. (Correction from Matlab, which only corrects for 
+    # inv case (but runs no check that flip angle is 180)
+    if RFpulse.flipAngle!=flipAngle:
+        warnings.warn('WARNING: Requested flip angle does not match angle used to generate RF pulse. Results may be inaccurate, especially for adiabatic case.',FidAWarning)
+    w1max=RFpulse.tw1*flipAngle/(Tp*RFpulse.flipAngle)
     # Now I need to work out whether the pulse is frequency selective or spatially selective
     if not RFpulse.isGM:
         if grad is None or grad==0:
@@ -625,15 +670,13 @@ def sim_shapedRF(d_in,Hlist,RFpulse,Tp,flipAngle,ph1=0,dfdx=0,grad=None,**pulse_
         else:
             simType='g'
             grad=grad*0.01 #convert from G/cm to T/m
-    else:#pulse is gradient-modulated
-        if grad is not None and grad!=0:
+    else: #pulse is gradient-modulated
+        if grad is None or grad==0:
             simType='g'
             grad=RFpulse.waveform[:,3]*0.01
         else:
             raise ValueError('ERROR! You cannot supply a gradient-modulated RFpulse AND specify the gradient strength.')
     dfdx=dfdx/100 #convert from cm to m
-    # Define the properties of the refocusing rf pulse. (Note that some of this
-    # could maybe be moved to the class??)
     Tp=Tp/1000
     rfph=RFpulse.waveform[:,0]*np.pi/180
     dt=Tp*RFpulse.waveform[:,2]/np.sum(RFpulse.waveform[:,2])
@@ -647,7 +690,6 @@ def sim_shapedRF(d_in,Hlist,RFpulse,Tp,flipAngle,ph1=0,dfdx=0,grad=None,**pulse_
         Rx=np.zeros([2**hmat.nspins,2**hmat.nspins,len(rfB1)])
         for spinct in range(hmat.nspins):
             # These all have length RF and apply at one particular shift in the spin system
-            # Matlab saves the value for each nspin but I don't think that there is any point
             if simType=='g':
                 Beff_tmp=np.sqrt(rfB1**2+(grad*dfdx+hmat._Bfield*hmat.shifts[spinct]/1e6)**2)
                 alpha_tmp=np.arctan2(grad*dfdx+hmat._Bfield*hmat.shifts[spinct]/1e6,rfB1)
@@ -657,9 +699,6 @@ def sim_shapedRF(d_in,Hlist,RFpulse,Tp,flipAngle,ph1=0,dfdx=0,grad=None,**pulse_
             theta_tmp=2*np.pi*hmat._gamma*Beff_tmp*dt
             # Now loop through the rf pulse. With list comprehensions, Rz, Rx etc
             # are lists of 3x3 rotation matrices and the list has length RF
-            # Note that this could be replaced with a single Rmats of length 3
-            # to correspond to x, y, and z directions but this creates lists of 
-            # lists of matrices, which, no.
             Rz=Rz+np.array([zval*hmat.Imats[2][:,:,spinct] for zval in zeta]).transpose([1,2,0])
             Ry=Ry+np.array([yval*hmat.Imats[1][:,:,spinct] for yval in alpha_tmp]).transpose([1,2,0])
             Rx=Rx+np.array([xval*hmat.Imats[0][:,:,spinct] for xval in theta_tmp]).transpose([1,2,0])
@@ -676,8 +715,28 @@ def sim_shapedRF(d_in,Hlist,RFpulse,Tp,flipAngle,ph1=0,dfdx=0,grad=None,**pulse_
     return d_out
 
 def sim_spoil(d_in,Hlist,anglein):
-    # The code here is the same as for sim_rotate but with whichax='z' and 
-    # angle is assumed to be a scalar. But sim_rotate will deal with scalars.
+    """
+    Simulates the effects of rotation about the z-axis. This function is a 
+    wrapper that calls sim_rotate with whichax='z'.
+
+    Parameters
+    ----------
+    d_in : list of numpy arrays
+        Input density matrices.
+    Hlist : list of pyFidA.Hamiltonian objects
+        Hamiltonian operator(s) for the spin system.
+    anglein : float
+        Spoil angle in degrees. (Note that numpy arrays and lists are allowed,
+        if different spoiling is needed for different parts of the spin system,
+        but the common case is the same value for all parts of the spin system.
+        The default is 90.
+
+    Returns
+    -------
+    d_out : list of numpy arrays
+        Output density matrix following z-rotation.
+
+    """
     d_out=sim_rotate(d_in,Hlist,anglein=anglein,whichax='z')
     return d_out
 

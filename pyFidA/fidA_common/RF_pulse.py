@@ -235,6 +235,14 @@ class RF_pulse(object):
     def pulse_type(self):
         return self._ptype
     @property
+    def flipAngle(self):
+        if self._ptype=='exc':
+            return 90
+        elif self._ptype=='inv' or self._ptype=='ref':
+            return 180
+        else:
+            return self._ptype
+    @property
     def f0(self):
         if hasattr(self._f0,'__iter__'):
             # intended to deal with multi-band case that is not yet fully implemented
