@@ -93,14 +93,14 @@ def read_spinsys_matlab(fname='list'):
         flist=[fn for fn in os.listdir(pname) if fn.endswith('.mat')]
         print('Available metabolites: '+ str(flist))
         return flist
-    # If filename doesn't exist, try to append entered fname to pyFidA/assets/metabolites
+    # if fname is not a file path from the current location, try to find it in the metabolites folder within pyFidA
     elif not os.path.exists(fname):
         pname=importlib_resources.files('pyFidA')
         fname=os.path.join(pname,'assets','metabolites',fname)
-        # loadmat will contain a number of variable, including __header__ and __version___.
-        # Want to select just the spin system, which always starts with 'sys'
-        sysmet=[vn for kn,vn in loadmat(fname,simplify_cells=True).items() if kn.startswith('sys')][0]
-        return sysmet
+    # loadmat will contain a number of variable, including __header__ and __version___.
+    # Want to select just the spin system, which always starts with 'sys'
+    sysmet=[vn for kn,vn in loadmat(fname,simplify_cells=True).items() if kn.startswith('sys')][0]
+    return sysmet
 
 def sim_lcmrawbasis(npts,sw,Bfield,linewidth,seq,metab,tau1,tau2=None,addref='n',makeraw='y',fname=None):
     """
