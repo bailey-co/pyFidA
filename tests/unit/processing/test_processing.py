@@ -18,13 +18,13 @@ from scipy.fft import fftshift, ifft, fft
 # Might be able to get rid of these if I've incorporated all of them (or a version
 # of them) into the common FID testing file.
 def make_lorentzian(ppm,amp,fwhm,ppm0,base_off=0,ph0=0):
-    if type(amp) is not list:
+    if isinstance(amp,list):
         amp=[amp]
         fwhm=[fwhm]
         ppm0=[ppm0]
     # don't need to make baseline and ph0 into lists because assume same for all peaks
     hwhm=[fv/2 for fv in fwhm]
-    y=np.zeros([len(amp),len(ppm)],dtype=complex)
+    y=np.zeros([len(amp),len(ppm)],dtype=np.complex128)
     for act,aval in enumerate(amp):
         ytmp=np.sqrt(2/np.pi)*(hwhm[act]-1j*(ppm-ppm0[act]))/(hwhm[act]**2+(ppm-ppm0[act])**2)
         # Scale it, add baseline, phase by ph0, and take the real part

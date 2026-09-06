@@ -2,16 +2,104 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jun  5 16:40:34 2026
-sim_sequences
+pyFidA.fidA_sim.sim_sequences.py
 
-@author: nearlabmacbook1
+@author: Colleen Bailey (@cbailey@sri.utoronto.ca), based on Matlab code by 
+Jamie Near and Robin Simpson
+
+Functions to simulate the results of pulse sequences using the density matrix
+formalism. For the basic operators that make up the pulse sequences 
+(excitation, evolution, etc., see pyFidA.fidA_sim.sim_operators.py.
+
+Functions:
+    sim_cosy,
+    sim_laser,
+    sim_megapress,
+    sim_megapress_shaped,
+    sim_megapress_shapedEdit,
+    sim_megapress_shapedRefoc,
+    sim_megaspecial_shaped,
+    sim_onepulse,
+    sim_onepulse_arbPh,
+    sim_onepulse_delay,
+    sim_onepulse_shaped,
+    sim_press,
+    sim_press_shaped,
+    sim_press_shaped_phCyc,
+    sim_semiLASER_shaped,
+    sim_semiLASER_shaped_phCyc,
+    sim_spinecho,
+    sim_spinecho_shaped,
+    sim_spinecho_xN,
+    sim_steam,
+    sim_steam_shaped
 """
 import numpy as np
 from .sim_operators import sim_COF, sim_Hamiltonian, sim_excite, sim_excite_arbPh, \
     sim_evolve, sim_gradSpoil, sim_rotate, sim_readout, sim_shapedRF
 from pyFidA.fidA_rf import rf_scaleGrad, rf_timeReverse
 
+def sim_cosy(npts,sw,Bfield,linewidth,spinSys,npts2,centerFreq=4.65,centerFreq_label=None):
+    df=sw/npts2
+    # delay_vec in ms, divide by 1000 to get in microseconds before sending to sim_evolve
+    delay_vec=np.r_[0:npts2/df:1/df]
+    if centerFreq_label is None:
+        centerFreq_label=centerFreq
+    H1,d1=sim_Hamiltonian(spinSys,Bfield,center_freq_ppm=centerFreq)
+    ### BEGIN PULSE SEQUENCE
+    d2=sim_excite(d1,H1,whichax='x',anglein=90)
+    out1=list()
+    for delay in delay_vec:
+        d3=sim_evolve(d2,H1,delay)
+        d3=sim_excite(d3,H1,whichax='x',anglein=90)
+        outtmp,dfinal=sim_readout(d3,H1,npts,sw=sw,linewidth=linewidth,rcvPhase=0,center_freq_ppm=centerFreq_label)
+        outtmp.sequence='cosy'
+        outtmp.sim='ideal'
+        outtmp.te=delay
+        out1.append(outtmp)
+    ### END PULSE SEQUENCE
+    return out1
+
 def sim_laser(npts,sw,Bfield,linewidth,spinSys,TE,centerFreq=4.65,centerFreq_label=None):
+    """
+    Simulates an ideal LASER experiment with total echo time TE and six
+    equally spaced echoes.
+    
+    Parameters
+    ----------
+    npts : int
+        Number of points in the fid/spectrum.
+    sw : float
+        Spectral width in Hz.
+    Bfield : float
+        Main magnetic field strength in Tesla.
+    linewidth : float
+        Full width at half maximum of the simulated peaks, in Hz.
+    spinSys : list of dicts
+        Spin system containing the name, chemical shifts, J-couplings and 
+        scaling factor for each part of the spin system. Non-interacting parts 
+        of the spin system should be split into separate dicts (the list 
+        elements), in order to speed up calculations. Fully interacting spin
+        systems will still be a list, but with only one dict element.
+    TE : float
+        Echo time in ms.
+    centerFreq : float, optional
+        Center frequency (in ppm) of the spectrum that defines the chemical 
+        shift values in spinSys. The default is 4.65.
+    centerFreq_label : float, optional
+        Center frequency of the simulated spectrum in ppm. The values for the 
+        center frequencies of the spin system and simulated spectrum are 
+        allowed to be different in case the chemical shifts used in spinSys
+        are relative to a different 0 ppm reference than the simulated 
+        spectrum. This is unlikely but possible. The default is None, which 
+        will use the value of centerFreq. 
+
+    Returns
+    -------
+    out1 : pyFidA.FID object
+        Spectrum simulated using the LASER sequence.
+
+    """
     if centerFreq_label is None:
         centerFreq_label=centerFreq
     H1,d1=sim_Hamiltonian(spinSys,Bfield,center_freq_ppm=centerFreq)
@@ -36,10 +124,68 @@ def sim_laser(npts,sw,Bfield,linewidth,spinSys,TE,centerFreq=4.65,centerFreq_lab
     ### END PULSE SEQUENCE
     out1.sequence='laser'
     out1.sim='ideal'
-    out1.te=TE #Note te in ms here. Not sure if that works with lcm write functions
+    out1.te=TE
     return out1
 
 def sim_megapress(npts,sw,Bfield,linewidth,spinSys,taus,refoc1Flip,refoc2Flip,editFlip,centerFreq=3,centerFreq_label=None):
+    """
+    Simulates an ideal MEGAPRESS experiment with instantaneous localization and
+    editing pulses. Provides the ability to specify the flip angle of each
+    refocusing pulse and editing pulse on each spin in the spin system.
+    
+    Parameters
+    ----------
+    npts : int
+        Number of points in the fid/spectrum.
+    sw : float
+        Spectral width in Hz.
+    Bfield : float
+        Main magnetic field strength in Tesla.
+    linewidth : float
+        Full width at half maximum of the simulated peaks, in Hz.
+    spinSys : list of dicts
+        Spin system containing the name, chemical shifts, J-couplings and 
+        scaling factor for each part of the spin system. Non-interacting parts 
+        of the spin system should be split into separate dicts (the list 
+        elements), in order to speed up calculations. Fully interacting spin
+        systems will still be a list, but with only one dict element.
+    taus : list or numpy array
+        Pulse sequence timing vector:
+            taus[0]: time in ms from first 90 to 180
+            taus[1]: time in ms from 1st 180 to 1st edit pulse
+            taus[2]: time in ms from 1st edit pulse to 2nd 180
+            taus[3]: time in ms from 2nd 180 to 2nd edit pulse
+            taus[4]: time in ms from 2nd edit pulse to ADC
+    refoc1Flip : float or numpy array or list
+        Flip angles(s) for first refocusing pulse in the sequence. Can be the
+        same for all spins, specified for each non-interacting part of the spin
+        system or unique for each spin.
+    refoc2Flip : float or numpy array or list
+        Flip angles(s) for second refocusing pulse in the sequence. Can be the
+        same for all spins, specified for each non-interacting part of the spin
+        system or unique for each spin.
+    editFlip : float or numpy array or list
+        Flip angles(s) for edit pulses in the sequence (same flip angle for
+        both pulses). Can be the same for all spins, specified for each
+        non-interacting part of the spin system or unique for each spin.
+    centerFreq : float, optional
+        Center frequency (in ppm) of the spectrum that defines the chemical 
+        shift values in spinSys. The default is 3 ppm.
+    centerFreq_label : float, optional
+        Center frequency of the simulated spectrum in ppm. The values for the 
+        center frequencies of the spin system and simulated spectrum are 
+        allowed to be different in case the chemical shifts used in spinSys
+        are relative to a different 0 ppm reference than the simulated 
+        spectrum. This is unlikely but possible. The default is None, which 
+        will use the value of centerFreq. 
+
+    Returns
+    -------
+    out1 : pyFidA.FID object
+        Spectrum simulated using the MEGA-PRESS sequence.
+
+    """
+    
     if centerFreq_label is None:
         centerFreq_label=centerFreq
     taus=[tval/1000 for tval in taus]
@@ -63,19 +209,101 @@ def sim_megapress(npts,sw,Bfield,linewidth,spinSys,taus,refoc1Flip,refoc2Flip,ed
     return out1
 
 def sim_megapress_shaped(npts,sw,Bfield,linewidth,taus,spinSys,editPulse,editTp,editPh1,editPh2,refPulse,refTp,dx,dy,Gx,Gy,refPh1,refPh2,centerFreq=3,centerFreq_label=None):
-    # Note that I have changed the order of arguments from Matlab in order to be
-    # consistent with the order for sim_shapedRF and especially to be consistent
-    # with other pulse sequences, where dx, dy, etc are listed before Gx,Gy. 
-    # There are a few sequences (megapress, megaspecial and spinecho) where the
-    # gradients were listed first, but then others (press, steam, semiLASER) 
-    # where the position is first. It felt more important to be consistent 
-    # across functions within Python than to stay consistent with Matlab. I 
-    # opted for the argument order in sim_shapedRF, which puts position before
-    # gradient.
+    """
+    Simulates the MEGA-PRESS sequence with shaped localization and editing 
+    pulses. Enables choice of the timings of all of the rf pulses as well as 
+    the choice of the phase of both the editing pulse and the refocusing 
+    pulses. This allows phase cycling of the editing and refocusing pulses by 
+    repeating simulations with different editing pulse phases, which is 
+    necessary to remove phase artefacts from the editing pulses. For the 
+    editing pulses, an eight step phase cycling scheme is typically sufficient, 
+    where the first editing pulse is cycled by 0 and 90 degrees, and the second 
+    editing pulse is cycled by 0, 90, 180 and 270 degrees, and all phase cycles 
+    should be added together to remove unwanted coherences. For the refocusing 
+    pulses, a four step phase cycling scheme is typically sufficient, where 
+    both refocusing pulses are phase cycled by 0 and 90 degrees, and the phases 
+    are combined in the following way:
+        signal = ([0 90] - [0 0]) + ([90 0] - [90 90])
+    where, in [X Y], X is the phase of the first refocusing pulse and Y is the 
+    phase of the second refocusing pulse
+    
+    Note that this code only simulates one subspectrum at a time (edit-on or 
+    edit-off). The difference spectrum can be obtained by simulating one of
+    each, and then subtracting.
+
+    Parameters
+    ----------
+    npts : int
+        Number of points in the fid/spectrum.
+    sw : float
+        Spectral width in Hz.
+    Bfield : float
+        Main magnetic field strength in Tesla.
+    linewidth : float
+        Full width at half maximum of the simulated peaks, in Hz.
+    spinSys : list of dicts
+        Spin system containing the name, chemical shifts, J-couplings and 
+        scaling factor for each part of the spin system. Non-interacting parts 
+        of the spin system should be split into separate dicts (the list 
+        elements), in order to speed up calculations. Fully interacting spin
+        systems will still be a list, but with only one dict element.
+    taus : list or numpy array
+        Pulse sequence timing vector:
+            taus[0]: time in ms from first 90 to 180
+            taus[1]: time in ms from 1st 180 to 1st edit pulse
+            taus[2]: time in ms from 1st edit pulse to 2nd 180
+            taus[3]: time in ms from 2nd 180 to 2nd edit pulse
+            taus[4]: time in ms from 2nd edit pulse to ADC
+    editPulse : pyFidA.RF_pulse object
+        RF pulse for the editing pulses (obtained using pyFidA.io_loadRFwaveform).
+    editTp : float
+        Duration of editing pulse in ms.
+    editPh1 : float
+        Phase of the first editing pulse in degrees.
+    editPh2 : float
+        Phase of the first editing pulse in degrees.
+    refPulse : pyFidA.RF_pulse object
+        RF pulse for the editing pulses (obtained using pyFidA.io_loadRFwaveform).
+    refTp : float
+        Duration of refocusing pulse in ms.    
+    dx : float
+        Position offset in x-direction in cm (corresponding to first refocusing 
+        pulse).
+    dy : float
+        Position offset in y-direction in cm (corresponding to second 
+        refocusing pulse).
+    Gx : float
+        Gradient strength for first selective refocusing pulse in G/cm.
+    Gy : float
+        Gradient strength for second selective refocusing pulse in G/cm.
+    refPh1 : float
+        Phase of the first refocusing pulse in degrees.
+    refPh2 : float
+        Phase of the second refocusing pulse in degrees.
+    centerFreq : float, optional
+        Center frequency (in ppm) of the spectrum that defines the chemical 
+        shift values in spinSys. The default is 3 ppm.
+    centerFreq_label : float, optional
+        Center frequency of the simulated spectrum in ppm. The values for the 
+        center frequencies of the spin system and simulated spectrum are 
+        allowed to be different in case the chemical shifts used in spinSys
+        are relative to a different 0 ppm reference than the simulated 
+        spectrum. This is unlikely but possible. The default is None, which 
+        will use the value of centerFreq.
+        
+    Raises
+    ------
+    ValueError
+        Delay values cannot be negative after subtracting pulse durations.
+
+    Returns
+    -------
+    out1 : pyFidA.FID object
+        Spectrum simulated using the MEGA-PRESS sequence.
+        
+    """
     if centerFreq_label is None:
         centerFreq_label=centerFreq
-    # Default is to set 3 ppm GABA resonance to the center??
-    
     # Calculate new delays by subtracting the pulse durations from the taus vector
     delays=[0]*len(taus)
     delays[0]=taus[0]-refTp/2
@@ -243,28 +471,6 @@ def sim_onepulse_delay(npts,sw,Bfield,linewidth,spinSys,delay,centerFreq=4.65,ce
     out1.sequence='onepulse'
     out1.sim='ideal'
     out1.te=delay
-    return out1
-
-def sim_cosy(npts,sw,Bfield,linewidth,spinSys,npts2,centerFreq=4.65,centerFreq_label=None):
-    df=sw/npts2
-    # delay_vec in ms, divide by 1000 to get in microseconds before sending to sim_evolve
-    #delay_vec=np.r_[0:npts2/df:1/df]
-    delay_vec=(np.r_[3:200*16+3:200]+200*8)/1e6
-    if centerFreq_label is None:
-        centerFreq_label=centerFreq
-    H1,d1=sim_Hamiltonian(spinSys,Bfield,center_freq_ppm=centerFreq)
-    ### BEGIN PULSE SEQUENCE
-    d2=sim_excite(d1,H1,whichax='x',anglein=90)
-    out1=list()
-    for delay in delay_vec:
-        d3=sim_evolve(d2,H1,delay)
-        d3=sim_excite(d3,H1,whichax='x',anglein=90)
-        outtmp,dfinal=sim_readout(d3,H1,npts,sw=sw,linewidth=linewidth,rcvPhase=0,center_freq_ppm=centerFreq_label)
-        outtmp.sequence='cosy'
-        outtmp.sim='ideal'
-        outtmp.te=delay
-        out1.append(outtmp)
-    ### END PULSE SEQUENCE
     return out1
 
 def sim_onepulse_shaped(npts,sw,Bfield,linewidth,spinSys,RF1,tp,phCyc,dfdx=0,G=None,centerFreq=4.65,centerFreq_label=None):

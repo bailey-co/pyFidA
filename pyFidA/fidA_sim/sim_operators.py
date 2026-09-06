@@ -34,6 +34,7 @@ Functions:
 """
 
 import numpy as np
+from pathlib import Path
 from scipy.linalg import expm
 from pyFidA.fidA_common import Hamiltonian, FID, FidAWarning
 from pyFidA import io_loadRFwaveform
@@ -58,9 +59,9 @@ def check_angle_format(anglein,Hlist):
         (provided that the lengths match the spin system sizes in Hlist), with 
         a unique flip angle for every spin in each part of the spin system.
     Hlist : list of pyFidA.Hamiltonian objects
-        Each list element is the Hamiltonian for a separable part of the spin
-        system. Only the shifts portion of each Hamiltonian is used, to expand
-        anglein to match its length, if needed.
+        Each list element is the Hamiltonian for a non-interacting part of the 
+        spin system. Only the shifts portion of each Hamiltonian is used, to 
+        expand anglein to match its length, if needed.
 
     Raises
     ------
@@ -138,7 +139,7 @@ def sim_coherenceOrder(spinSys):
         for the spin system.
 
     """
-    if type(spinSys) is dict:
+    if isinstance(spinSys, dict):
         spinSys=[spinSys]
     outlist=list()
     for eachpart in spinSys:
@@ -174,7 +175,7 @@ def sim_dAdd(d1,d2,factor=1):
         Sum (or difference) of d1 and d2.
 
     """
-    if type(d1) is list and type(d2) is list:
+    if isinstance(d1, list) and isinstance(d2, list):
         d_out=[d1val+d2val*factor for d1val,d2val in zip(d1,d2)]
     else:
         d_out=d1+d2*factor
@@ -200,7 +201,7 @@ def sim_dDiv(d_in,factor):
         Result of d_in / factor.
 
     """
-    if type(d_in) is list:
+    if isinstance(d_in, list):
         d_out=[dval/factor for dval in d_in]
     else:
         d_out=d_in/factor
@@ -227,7 +228,7 @@ def sim_dMul(d_in,factor):
         Result of d_in * factor.
 
     """
-    if type(d_in) is list:
+    if isinstance(d_in, list):
         d_out=[dval*factor for dval in d_in]
     else:
         d_out=factor*d_in
@@ -396,19 +397,20 @@ def sim_gradSpoil(d_in,Hlist,gradvec,posvec,dur):
 def sim_Hamiltonian(spinSys,Bfield,nucleus='1H',center_freq_ppm=4.65):
     """
     Create the Hamiltonian and density matrix for spin system. In cases 
-    where spin system is a list of dicts (eg. because spin system is 
-    separable), a list of Hamiltonians and a list of density matrices will be 
-    generated, each element representing a separable part of the spin system.
-    (Where a system is separable, it is better to separate it into parts to
-    reduce the size of matrices and thus the time spent on matrix 
-    multiplications and matrix exponential calculations in simulations)
+    where spin system is a list of dicts (eg. because spin system contains 
+    non-interacting spins), a list of Hamiltonians and a list of density 
+    matrices will be generated, each element representing a non-interacting
+    part of the spin system. (Where a system has non-interacting spins, it is 
+    better to separate it into parts to reduce the size of matrices and thus 
+    reduce the computation time for matrix multiplications and matrix 
+    exponential calculations.)
 
     Parameters
     ----------
     spinSys : dict or list
         Dictionary containing the name, shifts, J-couplings and scaleFactor of
-        the spin system, or a list of such dicts representing separable parts
-        of a spin system.
+        the spin system, or a list of such dicts representing non-interacting
+        parts of a spin system.
     Bfield : float
         Magnetic field strength in Tesla.
     nucleus : string, optional
@@ -425,13 +427,13 @@ def sim_Hamiltonian(spinSys,Bfield,nucleus='1H',center_freq_ppm=4.65):
         Hlist will be a list. All pyFidA simulation operators expect 
         Hamiltonians in a list, even if it only has a single element.
     dlist : list of numpy arrays
-        The equilibrium density matrix for spinSys, with each separable part
-        as its own element of the list. Even if spinSys is a dict, dlist will
-        be a list since lists are expected as input for all pyFidA simulation
-        functions.
+        The equilibrium density matrix for spinSys, with each part of the 
+        system as its own element of the list. Even if spinSys is a dict, dlist 
+        will be a list since lists are expected as input for all pyFidA 
+        simulation functions.
 
     """
-    if type(spinSys) is not list: # dict case converted to list
+    if not isinstance(spinSys, list): # dict case converted to list
         spinSys=[spinSys]
     Hlist=list()
     dlist=list()
@@ -505,7 +507,7 @@ def sim_readout(d_in,Hlist,npts,sw,linewidth,rcvPhase=0,shape='L',center_freq_pp
         val=2**(2-hmat.nspins)
         Fxy=hmat.F[0]+1j*hmat.F[1]
         phase_comp=np.exp(1j*rcvPhase*np.pi/180)
-        fidtmp=np.zeros([npts],dtype=complex)
+        fidtmp=np.zeros([npts],dtype=np.complex128)
         for kct in range(npts):
             d1=np.diag(np.exp(-1j*kct*D*deltat))
             d=np.dot(np.dot(U,d1),U.conj().T)
@@ -654,7 +656,7 @@ def sim_shapedRF(d_in,Hlist,RFpulse,Tp,flipAngle,ph1=0,dfdx=0,grad=None,**pulse_
         Output density matrix following shaped RF pulse excitation/refocusing.
 
     """
-    if type(RFpulse) is str:
+    if isinstance(RFpulse, str) or isinstance(RFpulse,Path):
         RFpulse=io_loadRFwaveform(RFpulse,flipAngle,Tp=Tp,**pulse_kwargs)
     # Allows pulses to be used for different flip angles than they may have
     # been generated for. (Correction from Matlab, which only corrects for 

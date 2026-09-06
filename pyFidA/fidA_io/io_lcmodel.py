@@ -218,7 +218,7 @@ def io_readlcmraw(fname,nucleus=None,imagingfreq=None,bandwidth=None,center_freq
         print('No nucleus entered. Assuming hydrogen')
         nucleus=['1H']
     else:
-        if type(nucleus) is not list:
+        if not isinstance(nucleus,list):
             nucleus=[nucleus]
     if center_freq_ppm is None:
         if nucleus==['1H']:
@@ -275,7 +275,7 @@ def io_readlcmraw_basis(fname,nucleus=['1H'],center_freq_ppm=4.65,return_info_di
     sequence=split_dict['$SEQPAR']['SEQ']
     spectralwidth=1/split_dict['$BASIS1']['BADELT']
     outdict=dict()
-    if type(nucleus) is not list:
+    if not isinstance(nucleus,list):
         nucleus=[nucleus]
     for metnm in metlist:
         outdict[metnm]=FID(fid_from_specs(split_dict[metnm]['DATA']),spectralwidth,txfreq,te,sequence=sequence,dims=['t'],nucleus=nucleus,center_freq_ppm=center_freq_ppm)

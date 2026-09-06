@@ -160,7 +160,7 @@ def op_gauss_linbas(pars,ppm):
         if not hasattr(pars[0],'__iter__'): #single peak case with amplitude, etc entered as scalars. Convert to lists to avoid errors when iterating.
             pars=[[eachvar] for eachvar in pars[:3]]+[eachvar for eachvar in pars[3:]]
         for varct in range(3,len(pars)):
-            if type(pars[varct]) is list:
+            if isinstance(pars[varct],list):
                 print('WARNING: Lists not allowed for baseline, offset or phase due to redundancy in fit parameters. Using first value only.')
                 pars[varct]=pars[varct][0]
         # baseline parameters and phase shift are optional. Initialize to 0 if
@@ -172,7 +172,7 @@ def op_gauss_linbas(pars,ppm):
         warnings.warn('WARNING: FWHM in op_gauss_linbas should be entered in ppm. Your value of {:3.3f} may be in Hz!'.format(fwhm[0]),FidAWarning)
     # Second parameter is FWHM but the equation below uses sigma. 
     sigma=[fv/2/np.sqrt(2*np.log(2)) for fv in fwhm]
-    y=np.zeros([len(amp),len(ppm)],dtype=complex)
+    y=np.zeros([len(amp),len(ppm)],dtype=np.complex128)
     for act,aval in enumerate(amp):
         y[act,:]=np.exp(-1*(ppm-ppm0[act])**2/2/sigma[act]**2)
         y[act,:]=y[act,:]/np.amax(np.abs(y[act,:]))*aval
@@ -295,7 +295,7 @@ def op_lorentz_linbas(pars,ppm):
         if not hasattr(pars[0],'__iter__'): # single peak case with amplitude etc entered as scalars. Convert to lists so that code can loop through each peak.
             pars=[[eachvar] for eachvar in pars[:3]]+[eachvar for eachvar in pars[3:]]
         for varct in range(3,len(pars)):
-            if type(pars[varct]) is list:
+            if isinstance(pars[varct], list):
                 print('WARNING: Lists not allowed for baseline, offset or phase due to redundancy in fit parameters. Using first value only.')
                 pars[varct]=pars[varct][0]
         # amplitude, fwhm and ppm0 are required. Any optional parameters not entered after those will be set to 0.
@@ -309,7 +309,7 @@ def op_lorentz_linbas(pars,ppm):
     # fwhm is in ppm then the gamma parameter is just fwhm/2, which is what I've
     # done here for both op_lorentz_linbas and op_lorentz.
     gamma=[fv/2 for fv in fwhm]
-    y=np.zeros([len(amp),len(ppm)],dtype=complex)
+    y=np.zeros([len(amp),len(ppm)],dtype=np.complex128)
     for act,aval in enumerate(amp):
         # Not sure that this sqrt(2/pi) scaling is correct but shouldn't matter 
         # since result is divided by max before scaling by amp.
@@ -503,7 +503,7 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
                 except TypeError: # int/float case
                     if parList[varnum]<0.1 and indat.nucleus[0]=='1H':
                         warnings.warn('WARNING: FWHM should be entered in Hz. Your value of {:3.3f} may be in ppm!'.format(parList[varnum]),FidAWarning)
-            if type(parList[varnum]) is list:
+            if isinstance(parList[varnum], list):
                 parList[varnum]=[pval/(indat.txfreq/1e6) for pval in parList[varnum]]
             else: # This should work for either np.ndarray or float/int scalars
                 parList[varnum]=parList[varnum]/(indat.txfreq/1e6)
@@ -534,7 +534,7 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         """
         parList=old_parList.copy()
         for varnum in whichvars:
-            if type(parList[varnum]) is list:
+            if isinstance(parList[varnum],list):
                 parList[varnum]=[pval*(indat.txfreq/1e6) for pval in parList[varnum]]
             else: # This should work for either np.ndarray or float/int scalars
                 parList[varnum]=parList[varnum]*(indat.txfreq/1e6)
@@ -599,7 +599,7 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
     
     # Set the default parameter bounds if parameter_bounds=True or set to +/- inf 
     # if parameter_bounds=False. Otherwise use parameter_bounds values entered.
-    if type(parameter_bounds) is bool:
+    if isinstance(parameter_bounds, bool):
         # First make a list the same length as parsGuess (ignoring if individual elements are lists themselves for now)
         # Complex parameters that need infinite bounds can be entered as np.inf and will be adjusted by nlinfit
         lb=[-np.inf]*len(parsGuess)
@@ -648,13 +648,13 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
     yFit=fitfunc(parsFit,indat.ppm)
 
     # Plotting (if showplot=True or show_plot='partial')
-    if type(show_plot) is bool:
+    if isinstance(show_plot, bool):
         if show_plot: # True, show the full plot over the full range
             f1,ax1=plt.subplots(1,1)
             ax1.plot(indat.ppm,np.real(indat.specs),'.',label='data')
             ax1.plot(indat.ppm,np.real(yGuess),':',label='guess')
             ax1.plot(indat.ppm,np.real(yFit),'-',label='fit')
-            if type(parsFit[0]) is list:
+            if isinstance(parsFit[0], list):
                 print('Area under the fitted curve is: '+str([pv1*pv2 for pv1,pv2 in zip(parsFit[0],parsFit[1])]))
             else:
                 print('Area under the fitted curve is: '+str(parsFit[0]*parsFit[1]))
@@ -666,7 +666,7 @@ def op_peakFit(indat,ppmmin=0,ppmmax=4.2,parsGuess=None,peaktype='lorentz',param
         ax1.plot(ppm,np.real(yGuess_part),':',label='guess')
         ax1.plot(ppm,np.real(yFit_part),'-',label='fit')
         ax1.legend()
-        if type(parsFit[0]) is list:
+        if isinstance(parsFit[0], list):
             print('Area under the fitted curve is: '++str([pv1*pv2 for pv1,pv2 in zip(parsFit[0],parsFit[1])]))
         else:
             print('Area under the fitted curve is: '+str(parsFit[0]*parsFit[1]))
@@ -725,7 +725,7 @@ def op_voigt_linbas(pars,ppm):
     if not hasattr(pars[0],'__iter__'): #type(pars[0]) is int or float for 1-peak case:
         pars=[[eachvar] for eachvar in pars[:4]]+[eachvar for eachvar in pars[4:]]
     for varct in range(4,len(pars)):
-        if type(pars[varct]) is list:
+        if isinstance(pars[varct],list):
             print('WARNING: Lists not allowed for baseline, offset or phase due to redundancy in fit parameters. Using first value only.')
             pars[varct]=pars[varct][0]
     # Any optional parameters not included in pars set to 0 by default.
@@ -739,7 +739,7 @@ def op_voigt_linbas(pars,ppm):
         warnings.warn('WARNING: FWHM in op_voigt_linbas should be entered in ppm. Your values of {:3.3f}, {:3.3f}  may be in Hz!'.format(fwhm_lor[0],fwhm_gauss[0]),FidAWarning)
     gamma=[fv/2 for fv in fwhm_lor]
     sigma=[fv/2/np.sqrt(2*np.log(2)) for fv in fwhm_gauss]
-    y=np.zeros([len(amp),len(ppm)],dtype=complex)
+    y=np.zeros([len(amp),len(ppm)],dtype=np.complex128)
     for act,aval in enumerate(amp):
         y[act,:]=voigt_profile(ppm-ppm0[act],sigma[act],gamma[act])
         y[act,:]=y[act,:]/np.amax(np.abs(y[act,:]))*aval

@@ -232,14 +232,14 @@ def use_fixed_errorbars(funcnm):
         # yerrs is either a column name (str) or a list of 2 column names that 
         # define the locations of the upper and lower errors (or just one if
         # errors are symmetric)
-        if type(yerrs) is str:
+        if isinstance(yerrs, str):
             if yerr_is_percent:
                 y_upper=data[y]+data[y]*data[yerrs]/100
                 y_lower=data[y]-data[y]*data[yerrs]/100
             else:
                 y_upper=data[y]+data[yerrs]
                 y_lower=data[y]-data[yerrs]
-        elif type(yerrs) is list and len(yerrs)==2:
+        elif isinstance(yerrs,list) and len(yerrs)==2:
             if yerr_is_percent:
                 y_lower=data[y]-data[y]*data[yerrs[0]]/100
                 y_upper=data[y]+data[y]*data[yerrs[1]]/100

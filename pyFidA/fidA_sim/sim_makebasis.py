@@ -38,10 +38,11 @@ def read_all_spinsys_matlab(fname=None):
     fullDict : dict
         Dictionary for the form {'sysAla': ala_dict, 'sysAsc': asc_dict,...}.
         Each metabolite is a separate dict entry and the corresponding value
-        is either a dict (in the case of inseparable spin systems) with the 
-        spin system information (name, peak positions (shifts), J-couplings 
-        and relative scaling factor) or a list of dicts (in the case where
-        parts of the spin system can be separated)
+        is either a dict (in the case of fully interacting spin systems) with 
+        the spin system information (name, chemical shifts, J-couplings and
+        relative scaling factor) or a list of dicts (in the case where 
+        non-interacting parts of the spin system make up separate list 
+        elements).
 
     """
     if fname is None:
@@ -69,13 +70,13 @@ def read_spinsys_matlab(fname='list'):
     Returns
     -------
     sysmet : dict or list of dicts
-        For an inseparable spin system, spin system parameters in the format:
+        Spin system parameters are in the format:
             {'name': str,
              'shifts': 1D np.ndarray,
              'J': 2D np.ndarray,
              'scaleFactor': int}
-        For a separable spin system, each part of the system is its own dict 
-        entry in a list, with the dicts having the above format.
+        Non-interacting spins are split into separate list elements, each of 
+        which is a dict with the above format for the relevant spins.
         
     OR
     

@@ -14,7 +14,7 @@ def op_plotfid(indat,tmax=None,xlab='Time (s)',ylab='FID Amplitude (arb units)',
     # colors, etc. can be passed to plt.plt using kwargs
     if plotax is None:
         [f1,plotax]=plt.subplots(1,1)
-    if type(indat) is list:
+    if isinstance(indat, list):
         if tmax is None:
             tmax=np.amax(indat[0].t)
         # Check that every entry in the list is of effective size 1
@@ -55,7 +55,7 @@ def op_plotspec(indat,xlims=None,xlab='Chemical Shift (ppm)',ylab='Signal',title
     if plotax is None:
         [f1,plotax]=plt.subplots(1,1)
     # Two cases: a list of FID objects, or a single FID object that may have 2+dimensions
-    if type(indat) is list:
+    if isinstance(indat, list):
         # Check that every entry in the list is of effective size 1
         if any([eachit.fids.ndim>2 for eachit in indat]) or any([eachit.fids.ndim==2 and (not (1 in eachit.sz)) for eachit in indat]):
             print("List entries cannot have more than 1 dimension. Did you forget to average?")

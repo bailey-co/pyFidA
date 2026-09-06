@@ -40,7 +40,7 @@ def make_fidobj_multidim(dt=250e-6,txfreq=300e6,npts=2048,peak_pos_ppm=2,center_
     # Debatable exactly what to do here, but going to try to make some fake averages and coils
     t=np.r_[0:npts*dt:dt]
     rel_freq=(center_freq_ppm-peak_pos_ppm)*txfreq/1e6
-    fidtmp=np.zeros([npts,n_av,n_coil],dtype=complex)
+    fidtmp=np.zeros([npts,n_av,n_coil],dtype=np.complex128)
     # Need to do something better for coil combos I think
     coil_amps=[0.7,0.9]
     coil_phases=[0,30*np.pi/180]

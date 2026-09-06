@@ -63,7 +63,7 @@ def io_readjmrui(fname):
         print('WARNING: Size of original file is '+str(rf_jmrui.shape)+'. Reshaping to 1D with length'+str(len(rf_jmrui.T.flatten()))+'.')
         rf_jmrui=rf_jmrui.T.flatten()
     rf_jmrui=rf_jmrui.conj()
-    rf_out=np.zeros([len(rf_jmrui,2)],dtype=np.complex)
+    rf_out=np.zeros([len(rf_jmrui,2)],dtype=np.complex128)
     rf_out[:,0]=rf_jmrui.copy()
     rf_out[:,1]=spec_from_fids(rf_jmrui)
     return rf_out,info_dict
@@ -692,7 +692,7 @@ def io_loadspec_brukNMR(fname,spectrometer=True,try_raw=False,return_info_dict=F
     # Truncate/leftshift and then reshape
     fids_raw=np.reshape(fids_raw,[-1,npts]).T
     fids_trunc=fids_raw[ADC_OFFSET:,...]
-    padw=np.zeros([fids_trunc.ndim,2],dtype=int)
+    padw=np.zeros([fids_trunc.ndim,2],dtype=np.int32)
     padw[0,1]=ADC_OFFSET
     fids=np.pad(fids_trunc, pad_width=padw)
     # rawdata does not seem to need to be transposed

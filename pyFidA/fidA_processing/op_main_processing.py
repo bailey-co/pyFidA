@@ -153,7 +153,7 @@ def op_addrcvrs(indat,phasept=0,mode='w',coilcombos=None,return_extra_args=None)
 @alter_return_args
 def op_alignAllScans(inlist, tmax=None, ref='f', mode='fp',freq_range=None,initPars=None,return_extra_args=None):
     # Make sure input is a list of length 2 or greater
-    if type(inlist) is not list or len(inlist)<2:
+    if not isinstance(inlist,list) or len(inlist)<2:
         TypeError('ERROR: The input must be a list of two or more MRS datasets in FID-A FID object form. ABORTING!!')
     # Figure out what reference spectrum will be
     if ref=='f':
@@ -219,7 +219,7 @@ def op_alignAverages(indat,tmax=None,med='n',ref=None,mode='fp',freq_range=None,
         B=indat.subspecs
         fs=np.zeros([indat.averages,B])
         phs=np.zeros_like(fs)
-        newfid=np.zeros([indat.sz[indat.dims['t']],indat.averages,B],dtype=np.complex64)
+        newfid=np.zeros([indat.sz[indat.dims['t']],indat.averages,B],dtype=np.complex128)
         for mct in range(B):
             # Create a slice to select the mct'th subspec
             subspec_pts=[slice(None)]*indat.ndim

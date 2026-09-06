@@ -326,7 +326,7 @@ def nlinfit(xdata,ydata,funcnm,parlist_of_lists,**kwargs):
         calls).
 
     """
-    if type(parlist_of_lists) is not list:
+    if not isinstance(parlist_of_lists, list):
         raise TypeError('ERROR: parameters must be entered as type list (but can contain elements that are arrays, lists or scalars)')
     # Note that np.iscomplex will not return True for any elements that are
     # just 0j. However, np.iscomplexobj will return True even if 0j is the only

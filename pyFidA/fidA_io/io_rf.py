@@ -171,7 +171,7 @@ def io_loadRFwaveform(fname,type_p,off_res=0,Tp=None,col_order=None,nucleus='1H'
         type_p='exc'
     elif type_p==180:
         type_p='inv'
-    if type(fname) is str or isinstance(fname,Path):
+    if isinstance(fname,str) or isinstance(fname,Path):
         fname=Path(fname)
         endstr=fname.suffix#fname[fname.rfind('.'):]
         if endstr=='.pta':
@@ -346,12 +346,12 @@ def io_writeRFbruk(rf_in,outfile):
         # Options for excitation mode are Excitation, Inversion, Refocusing, Universal, Universal180, Decoupling, Adiabatic, CompositeAdiabatic, Bib and Gradient
         # It seems as though basic pulses like Gauss and sine can be universal?
         f.write('\n##$SHAPE_EXMODE= {:s}'.format(ptype_dict[rf_in.pulse_type]))
-        if rf_in.pulsetype=='inv' or rf_in.pulse_type=='ref':
+        if rf_in.pulse_type=='inv' or rf_in.pulse_type=='ref':
             f.write('\n##$SHAPE_TOTROT= 18.00000e+1')
-        elif rf_in.pulsetype=='exc':
+        elif rf_in.pulse_type=='exc':
             f.write('\n##$SHAPE_TOTROT= 90.00000e0')
         else: # Any numerical value
-            f.write('\n##$SHAPE_TOTROT= {:2.6e}'.format(rf_in.pulsetype))
+            f.write('\n##$SHAPE_TOTROT= {:2.6e}'.format(rf_in.pulse_type))
         f.write('\n##$SHAPE_BWFAC= {:2.6e}'.format(rf_in.tbw))
         f.write('\n##$SHAPE_INTEGFAC= {:2.6e}'.format(INTEGFAC))
         f.write('\n##$SHAPE_REPHFAC=')

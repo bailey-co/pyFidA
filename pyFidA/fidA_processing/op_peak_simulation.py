@@ -31,7 +31,7 @@ def op_addNoise(indat,sdnoise,return_noisevec=None):
         The array of Gaussian noise values that were added to the data
     """
     outdat=indat.copy()
-    if type(sdnoise) is np.ndarray:
+    if isinstance(sdnoise, np.ndarray):
         noisevec=sdnoise
     else:
         noisevec=sdnoise*np.random.randn(*indat.sz)+1j*sdnoise*np.random.randn(*indat.sz)

@@ -30,16 +30,16 @@ base_I=[Ix,Iy,Iz]
 class Hamiltonian(object):
     def __init__(self,spin_dict,Bfield,nucleus='1H'):
         """
-        Hamiltonian for a spin system. Note that each Hamiltonian is for one
-        spin system. When a molecule's spin system contains parts that can be
-        separated (eg. the NH2 protons in Gln are not J-coupled to the other 
-        protons in the molecule), a separate Hamiltonian instance can be 
-        generated for each part and placed into a list using sim_Hamiltonian. 
+        Hamiltonian for a spin system. When a molecule's spin system contains 
+        non-interacting parts that can be separated (eg. the NH2 protons in Gln 
+        are not J-coupled to the other protons in the molecule), a separate 
+        Hamiltonian instance can be generated for each part and placed into a 
+        list using sim_Hamiltonian. 
         The fidA_sim functions anticipate a list of Hamiltonian objects 
         generated in this way (even if the list only has length 1 and contains 
         all info for the molecule in one system) rather than a Hamiltonian 
-        object directly. Keeping separable spin systems separate speeds up 
-        calculations.
+        object directly. Placing non-interacting spins in separate list 
+        elements speeds up calculations.
 
         Parameters
         ----------
@@ -53,12 +53,10 @@ class Hamiltonian(object):
                     between spins (only upper triangle info needs to be filled.
                     If there is only 1 spin, this can be int 0)
                 * 'scaleFactor': float defining the relative amplitude of this 
-                    spin system relative to others. (eg. the trimethyl protons 
-                    in PCh can be a spin system separate from the rest of the 
-                    protons in the molecule. This spin system can be defined
-                    with a single resonance frequency but it should be scaled
-                    9 times higher than the proton signals from the rest of the
-                    molecule)
+                    part of the spin system relative to others. (eg. the 
+                    trimethyl protons in PCh can be represented by a single
+                    chemical shift but have a scaleFactor of 9 compared to the
+                    protons in the rest of the molecule)
         Bfield : float
             Magnetic field strength, in Tesla.
         nucleus : string, optional
@@ -128,7 +126,7 @@ class Hamiltonian(object):
         for dirct,base_i in enumerate(base_I):
             # Iy is imaginary.
             if dirct==1:
-                Imats.append(np.zeros([2**self.nspins,2**self.nspins,self.nspins],dtype=complex))
+                Imats.append(np.zeros([2**self.nspins,2**self.nspins,self.nspins],dtype=np.complex128))
             else:
                 Imats.append(np.zeros([2**self.nspins,2**self.nspins,self.nspins]))
             # Loop through all spins
