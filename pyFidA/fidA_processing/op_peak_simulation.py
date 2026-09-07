@@ -11,7 +11,7 @@ from pyFidA.fidA_common import FID, GAMMA_DICT
 from .alter_return_args import alter_return_args
 
 @alter_return_args
-def op_addNoise(indat,sdnoise,return_noisevec=None):
+def op_addNoise(indat,sdnoise):
     """
     Add noise to a spectrum. Useful for simulated data
 
@@ -145,7 +145,7 @@ def op_makeECArtifact(indat,A,tc):
     return outdat
 
 @alter_return_args
-def op_makePhaseDrift(indat,totalDrift,noise,return_extra_args=None):
+def op_makePhaseDrift(indat,totalDrift,noise):
     # Matlab adjusts frequency for averages and subspecs. Presumably you would 
     # want to do coil combination before and, if you hadn't, don't adjust those
     # with different frequency drifts because those are data acquired from different
@@ -182,7 +182,7 @@ def op_makePhaseDrift(indat,totalDrift,noise,return_extra_args=None):
     return outdat,phDrift
 
 @alter_return_args
-def op_makeFreqDrift(indat,totalDrift,noise,return_extra_args=None):
+def op_makeFreqDrift(indat,totalDrift,noise):
     # Matlab adjusts frequency for averages and subspecs. Presumably you would 
     # want to do coil combination before and, if you hadn't, don't adjust those
     # with different frequency drifts because those are data acquired from different

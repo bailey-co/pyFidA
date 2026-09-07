@@ -54,7 +54,7 @@ def op_addphaseSubspec(indat,ph0):
     return outdat
 
 @alter_return_args
-def op_addrcvrs(indat,phasept=0,mode='w',coilcombos=None,return_extra_args=None):
+def op_addrcvrs(indat,phasept=0,mode='w',coilcombos=None):
     """
     Perform weighted coil recombination for MRS data acquired with receiver
     coil array.
@@ -151,7 +151,7 @@ def op_addrcvrs(indat,phasept=0,mode='w',coilcombos=None,return_extra_args=None)
 # names for those familiar with the Matlab calls. The "fundamental" alignment
 # function here in Python with the fitting functions is op_alignScans
 @alter_return_args
-def op_alignAllScans(inlist, tmax=None, ref='f', mode='fp',freq_range=None,initPars=None,return_extra_args=None):
+def op_alignAllScans(inlist, tmax=None, ref='f', mode='fp',freq_range=None,initPars=None):
     # Make sure input is a list of length 2 or greater
     if not isinstance(inlist,list) or len(inlist)<2:
         TypeError('ERROR: The input must be a list of two or more MRS datasets in FID-A FID object form. ABORTING!!')
@@ -179,12 +179,12 @@ def op_alignAllScans(inlist, tmax=None, ref='f', mode='fp',freq_range=None,initP
     return outlist, phlist, frqlist
 
 @alter_return_args
-def op_alignAllScans_fd(inlist, fmin, fmax, tmax=None, ref='f', mode='fp', initPars=None, return_extra_args=None):
+def op_alignAllScans_fd(inlist, fmin, fmax, tmax=None, ref='f', mode='fp', initPars=None):
     outlist,phlist,frqlist=op_alignAllScans(inlist, tmax, ref=ref, mode=mode,freq_range=[fmin,fmax], initPars=initPars, return_extra_args=True)
     return outlist, phlist, frqlist
     
 @alter_return_args
-def op_alignAverages(indat,tmax=None,med='n',ref=None,mode='fp',freq_range=None,initPars=None,return_extra_args=None):
+def op_alignAverages(indat,tmax=None,med='n',ref=None,mode='fp',freq_range=None,initPars=None):
     outdat=indat.copy()
     fs=0; phs=0;
     if 'coils' in indat and indat.sz[indat.dims['coils']]>1:
@@ -283,12 +283,12 @@ def op_alignAverages(indat,tmax=None,med='n',ref=None,mode='fp',freq_range=None,
     return outdat,np.squeeze(phs),np.squeeze(fs)
 
 @alter_return_args
-def op_alignAverages_fd(indat, minppm, maxppm, tmax=None, med='n', ref=None, mode='fp', initPars=None, return_extra_args=None):
+def op_alignAverages_fd(indat, minppm, maxppm, tmax=None, med='n', ref=None, mode='fp', initPars=None):
     out1,ph,frq=op_alignAverages(indat, tmax=tmax, med=med, ref=ref, mode=mode, freq_range=[minppm, maxppm],initPars=initPars,return_extra_args=True)
     return out1, ph, frq
 
 @alter_return_args
-def op_alignISIS(indat,tmax=None, mode='diff', freq_range=None, initPars=None, return_extra_args=None):
+def op_alignISIS(indat,tmax=None, mode='diff', freq_range=None, initPars=None):
     if not all([dval in ['t','averages','subspecs'] for dval in indat._dimlist]):
         raise FidAException('ERROR: op_alignISIS can only operate on data with subspecs and (optionally) averages dimensions. Combine coils with op_addrcvrs or limit other dimensions before running. ABORTING!!')
     if 'subspecs' not in indat:
@@ -329,7 +329,7 @@ def op_alignISIS(indat,tmax=None, mode='diff', freq_range=None, initPars=None, r
     return outdat, np.squeeze(phs), np.squeeze(fs)
 
 @alter_return_args
-def op_alignMPSubspecs(indat,mode='o',initPars=[0,0],ppmWeights=None,return_extra_args=None):
+def op_alignMPSubspecs(indat,mode='o',initPars=[0,0],ppmWeights=None):
     # No tmax since work is done on the frequency spectrum. And, I guess, if we
     # can't use op_alignScans anyway, we can get rid of freq_range and just use
     # ppmWeights (set to 0 in any part of the frequency range that you don't want)
@@ -379,7 +379,7 @@ def op_alignMPSubspecs(indat,mode='o',initPars=[0,0],ppmWeights=None,return_extr
     return outdat,phs,fs
 
 @alter_return_args
-def op_alignMPSubspecs_fd(indat,minppm,maxppm,mode='o',initPars=None,return_extra_args=None):
+def op_alignMPSubspecs_fd(indat,minppm,maxppm,mode='o',initPars=None):
     # Oh, actually, I need to do the freq_range stuff here I guess. Following 
     # along with Matlab and allowing initPars and mode to be entered here, but
     # not ppmWeights. So either you pass ppmWeights to the main op_alignMPSubspecs
@@ -397,7 +397,7 @@ def op_alignMPSubspecs_fd(indat,minppm,maxppm,mode='o',initPars=None,return_extr
     return outdat,phs,fs
 
 @alter_return_args
-def op_alignrcvrs(indat,phasept=0,mode='w',coilcombos=None,return_extra_args=None):
+def op_alignrcvrs(indat,phasept=0,mode='w',coilcombos=None):
     # No frequency range or initPars needed for this align function
     if 'coils' not in indat or indat.shape[indat.dims['coils']]==1:
         raise FidAException('ERROR: Receivers have already been combined! Aborting!')
@@ -447,7 +447,7 @@ def op_alignrcvrs(indat,phasept=0,mode='w',coilcombos=None,return_extra_args=Non
     return outdat,coilcombos
 
 @alter_return_args
-def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPars=None, return_extra_args=None):
+def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPars=None):
     # Based on the Matlab code. The idea here is that we have parameters operating
     # on complex data, but least squares calculation for minimizing will do 
     # strange things with complex data. So one alternative is to concatenate the
@@ -533,7 +533,7 @@ def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPar
     return out1, ph, frq
 
 @alter_return_args
-def op_alignScans_fd(inref, infloat, fmin, fmax, tmax=None, mode='fp', initPars=None,return_extra_args=None):
+def op_alignScans_fd(inref, infloat, fmin, fmax, tmax=None, mode='fp', initPars=None):
     out1,ph,frq=op_alignScans(inref, infloat, tmax=tmax, mode=mode, freq_range=[fmin,fmax],initPars=initPars,return_extra_args=True)
     return out1, ph, frq
 
@@ -588,7 +588,7 @@ def op_arsos(indat,domain='t'):
     return outdat
 
 @alter_return_args
-def op_autophase(indat,ppmmin=4.4,ppmmax=4.8,ph_init=0,new_method=False,tmax=0.5,show_plots=False,dimNum=None,return_extra_args=None):
+def op_autophase(indat,ppmmin=4.4,ppmmax=4.8,ph_init=0,new_method=False,tmax=0.5,show_plots=False,dimNum=None):
     """
     outdat,phShft=op_autophase(indat,ppmmin,ppmmax,ph=0,dimNum=None)
     Search for the peak located between ppmmin and ppmmax and then phase the 
@@ -733,7 +733,7 @@ def op_blockAvg(indat,N):
     return outdat
 
 @alter_return_args
-def op_combineRcvrs(indat,inw,return_extra_args=None):
+def op_combineRcvrs(indat,inw):
     # First find the weights using the water unsuppressed data
     weights=op_getcoilcombos(inw,2,'h')
     weights['sigs']=weights['sigs']/np.max(weights['sigs'])
@@ -857,7 +857,7 @@ def op_downsamp(indat,dsFactor):
     return outdat
     
 @alter_return_args
-def op_ecc_klose(indat,inw,return_extra_args=None):
+def op_ecc_klose(indat,inw):
     # Not sure if this was complete? It seems so much more straightforward than the op_ecc
     if 'coils' not in inw or inw.averages!=1 or inw.subspecs!=1:
         raise FidAException('ERROR: Must combine receivers, averages and subspecs prior to running ecc!! Aborting!!')
@@ -876,7 +876,7 @@ def op_ecc_klose(indat,inw,return_extra_args=None):
     return outdat,outw
 
 @alter_return_args
-def op_ecc(indat,inw,return_extra_args=None):
+def op_ecc(indat,inw):
     # I think that this isn't a million miles from what is done in Matlab, but
     # I would need some data that needs eddy current correction to check the
     # results against one another. Part of the issue in Matlab is that I don't
@@ -931,7 +931,7 @@ def op_fddccorr(indat,npts):
     return outdat
 
 @alter_return_args
-def op_filter(indat,lb,return_extra_args=None):
+def op_filter(indat,lb):
     """
     Perform line broadening by multiplying the time domain signal by an 
     exponential decay function.  
@@ -1006,7 +1006,7 @@ def op_fourStepCombine(indat,mode=0):
     return outdat
 
 @alter_return_args
-def op_freqAlignAverages(indat,tmax=None,med='a',ref=None,freq_range=None,initPars=None,return_extra_args=None):
+def op_freqAlignAverages(indat,tmax=None,med='a',ref=None,freq_range=None,initPars=None):
     # Note that the Matlab version of the function rewrites basically all of the
     # code from op_alignAverages. I have instead turned this into a wrapper 
     # function that calls op_alignAverages. However, there are differences in
@@ -1034,7 +1034,7 @@ def op_freqAlignAverages(indat,tmax=None,med='a',ref=None,freq_range=None,initPa
     return outdat,fs
 
 @alter_return_args
-def op_freqAlignAverages_fd(indat, minppm, maxppm, tmax=None, med='a', ref=None, initPars=None,return_extra_args=None):
+def op_freqAlignAverages_fd(indat, minppm, maxppm, tmax=None, med='a', ref=None, initPars=None):
     out1,frq=op_freqAlignAverages(indat, tmax=tmax, med=med, ref=ref, freq_range=[minppm, maxppm], initPars=initPars,return_extra_args=True)
     return out1,frq
 
@@ -1267,7 +1267,7 @@ def op_leftshift(indat,ls):
     return outdat
 
 @alter_return_args
-def op_matchLW(indat, inref, ppmmin, ppmmax, tmax=0.5, mode='l', initPars=None, return_extra_args=None):
+def op_matchLW(indat, inref, ppmmin, ppmmax, tmax=0.5, mode='l', initPars=None):
     # Based on the Matlab code. The idea here is that we have parameters operating
     # on complex data, but least squares calculation for minimizing will do 
     # strange things with complex data. So one alternative is to concatenate the
@@ -1355,7 +1355,7 @@ def op_movef0(indat,newf0):
     return outdat
 
 @alter_return_args
-def op_phaseAlignAverages(indat,npts=None,med='a',ref=None,weighting='n',freq_range=None,return_extra_args=None):
+def op_phaseAlignAverages(indat,npts=None,med='a',ref=None,weighting='n',freq_range=None):
     # Note that phase alignment across averages can be accomplished by calling
     # op_alignAverages with mode='p'. However, op_phaseAlignAverages works 
     # differently in Matlab and I have replicated that behaviour here for this
@@ -1480,12 +1480,12 @@ def op_phaseAlignAverages(indat,npts=None,med='a',ref=None,weighting='n',freq_ra
     return outdat,phs
     
 @alter_return_args
-def op_phaseAlignAverages_fd(indat, minppm, maxppm, npts=None,med='a',ref=None,weighting='n',freq_range=None,return_extra_args=None):
+def op_phaseAlignAverages_fd(indat, minppm, maxppm, npts=None,med='a',ref=None,weighting='n',freq_range=None):
     out1,phs=op_phaseAlignAverages(indat, npts=npts, med=med, ref=ref, weighting=weighting, freq_range=[minppm, maxppm], return_extra_args=True)
     return out1,phs
 
 @alter_return_args
-def op_ppmref(indat,ppmmin,ppmmax,ppmrefval,dimNum=0,zpfact=10,return_extra_args=None):
+def op_ppmref(indat,ppmmin,ppmmax,ppmrefval,dimNum=0,zpfact=10):
     # Going to generalize to allow multiple dimensions, but you still need to pick
     # a dimension for subspecs
     whichslice=[slice(None)]*indat.ndim
@@ -1524,7 +1524,7 @@ def op_ppmref(indat,ppmmin,ppmmax,ppmrefval,dimNum=0,zpfact=10,return_extra_args
     return outdat,frqshift
 
 @alter_return_args
-def op_removeWater(indat,wlim=[4.4,5],Kinit=20,M=None,plot_bool=True,return_extra_args=None):
+def op_removeWater(indat,wlim=[4.4,5],Kinit=20,M=None,plot_bool=True):
     # This seems to be the same as op_HSVDfit but with different default ppm 
     # limits to define the water peak and then a bunch of the fit parameters
     # added as a new property to the object
@@ -1584,7 +1584,7 @@ def get_zmetric(indat,which_domain):
     return metric,zmetric,zmet_rs
     
 @alter_return_args
-def op_rmbadaverages(indat,nsd=3,which_domain='t',return_extra_args=None):
+def op_rmbadaverages(indat,nsd=3,which_domain='t'):
     which_domain=which_domain.lower()
     if indat.averages==1:
         raise FidAException('ERROR:  Averaging has already been performed!  Aborting!')
@@ -1632,7 +1632,7 @@ def op_rmbadaverages(indat,nsd=3,which_domain='t',return_extra_args=None):
     return outdat,metric,badAverages
     
 @alter_return_args
-def op_rmNworstaverages(indat,n,which_domain='f',return_extra_args=None):
+def op_rmNworstaverages(indat,n,which_domain='f'):
     # For some reason the default domain here is 'f' and it's 't' for rmbadaverages
     which_domain=which_domain.lower()
     if indat.averages==1:
@@ -1688,7 +1688,7 @@ def op_rmNworstaverages(indat,n,which_domain='f',return_extra_args=None):
     return outdat,metric,badAverages
     
 @alter_return_args
-def op_rmworstaverage(indat,which_domain='f',return_extra_args=None):
+def op_rmworstaverage(indat,which_domain='f'):
     # This could be done just by finding argmax of metric, but I might as well
     # re-use the code from rmNworstaverages with n=1. You could return 
     # badAverages[0] just to make it a scalar, but everything else remains 
@@ -1739,7 +1739,7 @@ def op_timerange(indat,tmin,tmax):
     return outdat
 
 @alter_return_args
-def op_unfilter(indat,lb,return_extra_args=None):
+def op_unfilter(indat,lb):
     """
     Multiply the fid by an inverted exponential decay function to undo the effects
     of filtering.

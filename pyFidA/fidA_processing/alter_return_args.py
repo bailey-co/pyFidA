@@ -9,11 +9,10 @@ are returned, including:
     1. Setting _use_default, which determines whether all arguments are returned
     from a function (_use_default=True) or only the first argument 
     (_use_default=False) upon importing the pyFidA module.
-    2. The alter_return_args decorator, which can be applied to any function as
-    long as an input argument (named return_extra_args, by convention) is added 
-    as the last input arguments of that function. This variable can be used to
-    override other indicators of how to deal with the return arguments for a
-    single function call.
+    2. The alter_return_args decorator, which can be applied to any function 
+    and adds an input argument return_extra_args to the function. This variable 
+    can be used to override other indicators of how to deal with the return 
+    arguments for a single function call.
     eg. op_autophase(myfid, return_extra_args=False) will
     return just a FID object (and not the zero-th order phase), regardless of
     the value of _use_default or whether allow_chaining() has been called 
@@ -41,7 +40,8 @@ Created on Fri Jun  5 14:37:41 2026
 """
 
 import functools
-from pyFidA.fidA_common import ReturnBehaviour
+import warnings
+from pyFidA.fidA_common import ReturnBehaviour, FidAWarning
 
 # The default behaviour on import is set by this line, which assigns the 
 # initial value of use_default._return_args. Users can change this line if they 
@@ -78,6 +78,62 @@ def stop_chaining():
     
 def alter_return_args(funcnm):
     """
+    Decorator applied to functions to change how output arguments are returned.
+    The function being decorated (funcnm) can be controlled with the input
+    argument return_extra_args. Setting the value of this argument to True 
+    or False in any individual function call will override everything else to 
+    return all output arguments or return only the first output argument, 
+    respectively. Leaving this argument off will use pyFidA's current default
+    behaviour of return arguments, _use_default._return_args
+
+    Parameters
+    ----------
+    funcnm : function
+        Function to be decorated.
+
+    Returns
+    -------
+    wrapper : function
+        Decorated version of funcnm, affected by allow_chaining, stop_chaining,
+        and the value of funcnm's final input argument.
+    """
+    
+    extra_doc_string1="and {:s}(...,return_extra_args=True/False)\n".format(funcnm.__name__)
+    extra_doc_string2="""This function has been decorated by alter_return_args
+    and the number of output arguments returned can be changed by adding 
+    return_extra_args as an input argument:
+        * return_extra_args=True will return all output arguments
+        * return_extra_args=False will return only the first output argument
+        * If no return_extra_args input argument is entered, the current pyFidA
+        default will be used, which can be altered by pyFidA.allow_chaining()
+        and pyFidA.stop_chaining()
+    """
+    if funcnm.__doc__ is None:
+        funcnm.__doc__=extra_doc_string1+extra_doc_string2
+    else:
+        funcnm.__doc__=extra_doc_string1+funcnm.__doc__+extra_doc_string2
+        
+    @functools.wraps(funcnm)
+    def wrapper(*args,**kwargs):
+        if 'return_extra_args' in kwargs.keys():
+            return_flag=kwargs.pop('return_extra_args')
+        else:
+            return_flag=_use_default()
+        outargs=funcnm(*args,**kwargs)
+        if return_flag:
+            return outargs
+        else:
+            try:
+                return outargs[0]
+            except IndexError:
+                warnings.warn('WARNING: The function you called has been decorated by alter_return_args decorator. Multiple output arguments were expected for this function but only one was returned. This could indicate a problem with the decorator.',FidAWarning)
+                return outargs
+    return wrapper
+        
+def alter_return_args_old(funcnm):
+    """
+    Old version. To be deleted after testing.
+    
     Decorator applied to functions to change how output arguments are returned.
     The function being decorated (funcnm) should have a final input argument
     that is used to define the return behaviour. This final input argument is
