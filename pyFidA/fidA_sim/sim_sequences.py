@@ -108,16 +108,9 @@ def sim_laser(npts,sw,Bfield,linewidth,spinSys,TE,centerFreq=4.65,centerFreq_lab
     ### BEGIN PULSE SEQUENCE
     d2=sim_excite(d1,H1,whichax='x',anglein=90)
     d2=sim_evolve(d2,H1,tau/2) #Evolve by tau/2
-    d2=sim_rotate(d2,H1,180,'y') #First 180 refocusing pulse about y axis.
-    d2=sim_evolve(d2,H1,tau) #Evolve by tau
-    d2=sim_rotate(d2,H1,180,'y') #2nd 180 refocusing pulse about y axis.
-    d2=sim_evolve(d2,H1,tau) #Evolve by tau
-    d2=sim_rotate(d2,H1,180,'y') #3rd 180 refocusing pulse about y axis.
-    d2=sim_evolve(d2,H1,tau) #Evolve by tau
-    d2=sim_rotate(d2,H1,180,'y') #4th 180 refocusing pulse about y axis.
-    d2=sim_evolve(d2,H1,tau) #Evolve by tau
-    d2=sim_rotate(d2,H1,180,'y') #5th 180 refocusing pulse about y axis.
-    d2=sim_evolve(d2,H1,tau) #Evolve by tau
+    for refoc_idx in range(5):
+        d2=sim_rotate(d2,H1,180,'y') #180 refocusing pulse about y axis.
+        d2=sim_evolve(d2,H1,tau) #Evolve by tau
     d2=sim_rotate(d2,H1,180,'y') #Sixth 180 refocusing pulse about y axis.
     d2=sim_evolve(d2,H1,tau/2) #Evolve by tau/2
     out1,dfinal=sim_readout(d2,H1,npts,sw=sw,linewidth=linewidth,rcvPhase=90,center_freq_ppm=centerFreq_label) #Readout along y (90 degree phase)
@@ -192,15 +185,10 @@ def sim_megapress(npts,sw,Bfield,linewidth,spinSys,taus,refoc1Flip,refoc2Flip,ed
     H1,d1=sim_Hamiltonian(spinSys,Bfield,center_freq_ppm=centerFreq)
     ### BEGIN PULSE SEQUENCE
     d2=sim_excite(d1,H1,whichax='x',anglein=90)
-    d2=sim_evolve(d2,H1,taus[0]) #Evolve by taus[0]
-    d2=sim_rotate(d2,H1,refoc1Flip,'y') #First refocusing pulse about y axis.
-    d2=sim_evolve(d2,H1,taus[1]) #Evolve by taus[1]
-    d2=sim_rotate(d2,H1,editFlip,'y') #First editing pulse about y axis
-    d2=sim_evolve(d2,H1,taus[2]) #Evolve by taus[2]
-    d2=sim_rotate(d2,H1,refoc2Flip,'y') #Second refocusing pulse about y axis.
-    d2=sim_evolve(d2,H1,taus[3]) #Evolve by taus[3]
-    d2=sim_rotate(d2,H1,editFlip,'y') #Second editing pulse about y axis
-    d2=sim_evolve(d2,H1,taus[4]) #Evolve by taus[4]
+    d2=sim_evolve(d2,H1,taus[0]) #Evolve
+    for tval,mp_pulse in zip(taus[1:],[refoc1Flip,editFlip,refoc2Flip,editFlip]):
+        d2=sim_rotate(d2,H1,mp_pulse,'y') #Refocusing or editing pulse about y axis.
+        d2=sim_evolve(d2,H1,tval) #Evolve
     out1,dfinal=sim_readout(d2,H1,npts,sw=sw,linewidth=linewidth,rcvPhase=90,center_freq_ppm=centerFreq_label) #Readout along y (90 degree phase)
     ### END PULSE SEQUENCE
     out1.sequence='megapress'
@@ -208,7 +196,7 @@ def sim_megapress(npts,sw,Bfield,linewidth,spinSys,taus,refoc1Flip,refoc2Flip,ed
     out1.te=sum(taus)
     return out1
 
-def sim_megapress_shaped(npts,sw,Bfield,linewidth,taus,spinSys,editPulse,editTp,editPh1,editPh2,refPulse,refTp,dx,dy,Gx,Gy,refPh1,refPh2,centerFreq=3,centerFreq_label=None):
+def sim_megapress_shaped(npts,sw,Bfield,linewidth,spinSys,taus,editPulse,editTp,editPh1,editPh2,refPulse,refTp,dx,dy,Gx,Gy,refPh1,refPh2,centerFreq=3,centerFreq_label=None):
     """
     Simulates the MEGA-PRESS sequence with shaped localization and editing 
     pulses. Enables choice of the timings of all of the rf pulses as well as 
@@ -305,15 +293,9 @@ def sim_megapress_shaped(npts,sw,Bfield,linewidth,taus,spinSys,editPulse,editTp,
     if centerFreq_label is None:
         centerFreq_label=centerFreq
     # Calculate new delays by subtracting the pulse durations from the taus vector
-    delays=[0]*len(taus)
-    delays[0]=taus[0]-refTp/2
-    delays[1]=taus[1]-(refTp+editTp)/2
-    delays[2]=taus[2]-(editTp+refTp)/2
-    delays[3]=taus[3]-(refTp+editTp)/2
-    delays[4]=taus[4]-editTp/2
+    delays=[(tval-pulseval/2)/1000 for tval,pulseval in zip(taus,[refTp,refTp+editTp,editTp+refTp,refTp+editTp,editTp])]
     if any([dval<0 for dval in delays]):
-        raise ValueError('ERROR! The following taus are too short: ' + str([dval<0 for dval in delays]) +'.')
-    delays=[dval/1000 for dval in delays]
+        raise ValueError('ERROR! The following taus are too short: ' + str([didx for didx,dval in enumerate(delays) if dval<0]) +'.')
     H1,d1=sim_Hamiltonian(spinSys,Bfield,center_freq_ppm=centerFreq)
     ### BEGIN PULSE SEQUENCE
     d2=sim_excite(d1,H1,whichax='x',anglein=90)
@@ -333,21 +315,76 @@ def sim_megapress_shaped(npts,sw,Bfield,linewidth,taus,spinSys,editPulse,editTp,
     out1.te=sum(taus)
     return out1
 
-def sim_megapress_shapedEdit(npts,sw,Bfield,linewidth,taus,spinSys,editPulse,editTp,editPh1,editPh2,centerFreq=3,centerFreq_label=None):
+def sim_megapress_shapedEdit(npts,sw,Bfield,linewidth,spinSys,taus,editPulse,editTp,editPh1,editPh2,centerFreq=3,centerFreq_label=None):
+    """
+    This function simulates the MEGA-PRESS sequence with instantaneous
+    localization pulses and shaped editing pulses. Enables choice of the 
+    timings of all of the rf pulses as well as the choice of the phase of the
+    editing pulse. This allows phase cycling of the editing pulses. For the 
+    editing pulses, an eight step phase cycling scheme is typically sufficient, 
+    where the first editing pulse is cycled by 0 and 90 degrees, and the second 
+    editing pulse is cycled by 0,90,180, and 270 degrees, and all phase cycles 
+    should be added together to remove unwanted coherences.
+    
+    Parameters
+    ----------
+    npts : int
+        Number of points in the fid/spectrum.
+    sw : float
+        Spectral width in Hz.
+    Bfield : float
+        Main magnetic field strength in Tesla.
+    linewidth : float
+        Full width at half maximum of the simulated peaks, in Hz.
+    spinSys : list of dicts
+        Spin system containing the name, chemical shifts, J-couplings and 
+        scaling factor for each part of the spin system. Non-interacting parts 
+        of the spin system should be split into separate dicts (the list 
+        elements), in order to speed up calculations. Fully interacting spin
+        systems will still be a list, but with only one dict element.
+    taus : list or numpy array
+        Pulse sequence timing vector:
+            taus[0]: time in ms from first 90 to 180
+            taus[1]: time in ms from 1st 180 to 1st edit pulse
+            taus[2]: time in ms from 1st edit pulse to 2nd 180
+            taus[3]: time in ms from 2nd 180 to 2nd edit pulse
+            taus[4]: time in ms from 2nd edit pulse to ADC
+    editPulse : pyFidA.RF_pulse object
+        RF pulse for the editing pulses (obtained using pyFidA.io_loadRFwaveform).
+    editTp : float
+        Duration of editing pulse in ms.
+    editPh1 : float
+        Phase of the first editing pulse in degrees.
+    editPh2 : float
+        Phase of the first editing pulse in degrees.
+    centerFreq : float, optional
+        Center frequency (in ppm) of the spectrum that defines the chemical 
+        shift values in spinSys. The default is 3 ppm.
+    centerFreq_label : float, optional
+        Center frequency of the simulated spectrum in ppm. The values for the 
+        center frequencies of the spin system and simulated spectrum are 
+        allowed to be different in case the chemical shifts used in spinSys
+        are relative to a different 0 ppm reference than the simulated 
+        spectrum. This is unlikely but possible. The default is None, which 
+        will use the value of centerFreq.
+    
+    Raises
+    ------
+    ValueError
+        Delay values cannot be negative after subtracting pulse durations.
+
+    Returns
+    -------
+    out1 : pyFidA.FID object
+        Spectrum simulated using the MEGA-PRESS sequence.
+            
+    """
     if centerFreq_label is None:
         centerFreq_label=centerFreq
-    # Default is to set 3 ppm GABA resonance to the center??
-    
     # Calculate new delays by subtracting the pulse durations from the taus vector
-    delays=[0]*len(taus)
-    delays[0]=taus[0]
-    delays[1]=taus[1]-editTp/2
-    delays[2]=taus[2]-editTp/2
-    delays[3]=taus[3]-editTp/2
-    delays[4]=taus[4]-editTp/2
+    delays=[taus[0]/1000]+[(tval-editTp/2)/1000 for tval in taus[1:]]
     if any([dval<0 for dval in delays]):
-        raise ValueError('ERROR! The following taus are too short: ' + str([dval<0 for dval in delays]) +'.')
-    delays=[dval/1000 for dval in delays]
+        raise ValueError('ERROR! The following taus are too short: ' + str([didx for didx,dval in enumerate(delays) if dval<0]) +'.')
     H1,d1=sim_Hamiltonian(spinSys,Bfield,center_freq_ppm=centerFreq)
     ### BEGIN PULSE SEQUENCE
     d2=sim_excite(d1,H1,whichax='x',anglein=90)
@@ -373,15 +410,9 @@ def sim_megapress_shapedRefoc(npts,sw,Bfield,linewidth,taus,spinSys,editFlip,ref
     # Default is to set 3 ppm GABA resonance to the center??
     
     # Calculate new delays by subtracting the pulse durations from the taus vector
-    delays=[0]*len(taus)
-    delays[0]=taus[0]-refTp/2
-    delays[1]=taus[1]-refTp/2
-    delays[2]=taus[2]-refTp/2
-    delays[3]=taus[3]-refTp/2
-    delays[4]=taus[4]
+    delays=[(tval-refTp/2)/1000 for tval in taus[:-1]]+[taus[-1]/1000]
     if any([dval<0 for dval in delays]):
-        raise ValueError('ERROR! The following taus are too short: ' + str([dval<0 for dval in delays]) +'.')
-    delays=[dval/1000 for dval in delays]
+        raise ValueError('ERROR! The following taus are too short: ' + str([didx for didx,dval in enumerate(delays) if dval<0]) +'.')
     H1,d1=sim_Hamiltonian(spinSys,Bfield,center_freq_ppm=centerFreq)
     ### BEGIN PULSE SEQUENCE
     d2=sim_excite(d1,H1,whichax='x',anglein=90)

@@ -7,18 +7,18 @@ Python is unable to vary its outputs based on the function call in the way that
 Matlab is. This module contains code to help users change how output arguments
 are returned, including:
     1. Setting _use_default, which determines whether all arguments are returned
-    from a function (_use_default=True) or only the first argument 
-    (_use_default=False) upon importing the pyFidA module.
+    from a function (_use_default._return_args=True) or only the first argument 
+    (_use_default._return_args=False) upon importing the pyFidA module.
     2. The alter_return_args decorator, which can be applied to any function 
-    and adds an input argument return_extra_args to the function. This variable 
-    can be used to override other indicators of how to deal with the return 
-    arguments for a single function call.
+    and adds an input argument return_extra_args to the function. This input 
+    argument can be used to override other indicators of how to deal with the 
+    return arguments for a single function call.
     eg. op_autophase(myfid, return_extra_args=False) will
     return just a FID object (and not the zero-th order phase), regardless of
     the value of _use_default or whether allow_chaining() has been called 
     beforehand.
     3. The allow_chaining() and stop_chaining() functions that change the 
-    output argument return behaviour for blocks of code.
+    default output argument return behaviour for blocks of code.
 
 Currently, this code is only used in the fidA_processing toolbox on selected
 functions, but similar code could be implemented for other modules. (It may
@@ -54,11 +54,12 @@ _use_default=ReturnBehaviour(True)
 
 def allow_chaining():
     """
-    Changes the behaviour of selected functions in the fidA_processing module
-    so that only the first output argument (usually the processed FID object)
-    is returned. The behaviour persist for all subsequent function calls until
-    stop_chaining() is called or the pyFidA module is reloaded. This means 
-    that functions can be easily chained together like:
+    Changes the behaviour of selected functions (those decorated with 
+    alter_return_args) in the fidA_processing module so that only the first 
+    output argument (usually the processed FID object) is returned. The 
+    behaviour persists for all subsequent function calls until stop_chaining()
+    is called or the pyFidA module is reloaded. This means that functions can 
+    be easily chained together like:
     pyFidA.allow_chaining()
     pyFidA.op_plotspec(pyFidA.op_autophase(pyFidA.op_averaging(my_fid)))
     """
@@ -66,10 +67,11 @@ def allow_chaining():
     
 def stop_chaining():
     """
-    Changes the behaviour of selected functions in the fidA_processing module
-    to return all output arguments. The behaviour persist for subsequent 
-    function calls, until allow_chaining() is called or the pyFidA module is
-    reloaded. This means that functions cannot be chained together:
+    Changes the behaviour of selected functions (those decoarated with 
+    alter_return_args) in the fidA_processing module to return all output 
+    arguments. The behaviour persists for subsequent function calls, until 
+    allow_chaining() is called or the pyFidA module is reloaded. This means 
+    that functions cannot be chained together:
     pyFidA.stop_chaining()
     phased_fid, ph0 = pyFidA.op_autophase(myfid)
     pyFidA.op_plotspec(phased_fid)
@@ -84,7 +86,7 @@ def alter_return_args(funcnm):
     or False in any individual function call will override everything else to 
     return all output arguments or return only the first output argument, 
     respectively. Leaving this argument off will use pyFidA's current default
-    behaviour of return arguments, _use_default._return_args
+    behaviour for return arguments.
 
     Parameters
     ----------
@@ -95,18 +97,18 @@ def alter_return_args(funcnm):
     -------
     wrapper : function
         Decorated version of funcnm, affected by allow_chaining, stop_chaining,
-        and the value of funcnm's final input argument.
+        and the value of return_extra_args.
     """
     
     extra_doc_string1="and {:s}(...,return_extra_args=True/False)\n".format(funcnm.__name__)
     extra_doc_string2="""This function has been decorated by alter_return_args
-    and the number of output arguments returned can be changed by adding 
-    return_extra_args as an input argument:
+    and the number of output arguments returned can be changed with input
+    argument return_extra_args:
         * return_extra_args=True will return all output arguments
         * return_extra_args=False will return only the first output argument
         * If no return_extra_args input argument is entered, the current pyFidA
-        default will be used, which can be altered by pyFidA.allow_chaining()
-        and pyFidA.stop_chaining()
+        default return behaviour will be used, which can be altered by 
+        pyFidA.allow_chaining() and pyFidA.stop_chaining().
     """
     if funcnm.__doc__ is None:
         funcnm.__doc__=extra_doc_string1+extra_doc_string2
@@ -122,12 +124,11 @@ def alter_return_args(funcnm):
         outargs=funcnm(*args,**kwargs)
         if return_flag:
             return outargs
+        elif not isinstance(outargs,tuple):
+            warnings.warn('WARNING: The function you called has been decorated by alter_return_args decorator. Multiple output arguments were expected for this function but only one is returned. This could indicate a problem with the decorator.',FidAWarning)
+            return outargs
         else:
-            try:
-                return outargs[0]
-            except IndexError:
-                warnings.warn('WARNING: The function you called has been decorated by alter_return_args decorator. Multiple output arguments were expected for this function but only one was returned. This could indicate a problem with the decorator.',FidAWarning)
-                return outargs
+            return outargs[0]
     return wrapper
         
 def alter_return_args_old(funcnm):

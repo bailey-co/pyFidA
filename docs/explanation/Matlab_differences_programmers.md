@@ -295,10 +295,10 @@ Where possible, pyFidA functions are wrappers to avoid repeating code and so tha
 # Return arguments
 As explained in [Matlab Differences for Basic Users](Matlab_differences_basic.md#returnargs), Python is unable to alter the number of arguments returned based on the user call. In pyFidA, the choice to return the first argument versus all arguments for selected processing functions is done with the @alter_return_args decorator.
 
-Users can add add this functionality to their own functions by importing the @alter_return_args decorator from pyFidA.fidA_processing.alter_return_args.py and applying it to their function. For this decorator to work properly with the allow_chaining() and stop_chaining() calls, the user-defined function must have a final input argument with default value "None". This argument is named "return_extra_args" by convention, but any name will work; the only requirement is that the argument be the final input argument. The remainder of the function does not need to change and it should return all output arguments in the user-constructed part of the code. It is the decorator that decides how many are returned to the user based on the input argument value or the global ReturnBehaviour status in the case where return_extra_args=None.
+Users can add add this functionality to their own functions by importing the @alter_return_args decorator from pyFidA.fidA_processing.alter_return_args.py and applying it to their function. This decorator then looks for an input keyword argument named "return_extra_args" as an input argument to the decorated function call, and uses that value to determine how many output arguments to return. Note that return_extra_args must be a keyword argument (eg. return_extra_args=True), not a positional argument. If return_extra_args=True/False is not in the decorated function call, the default return behaviour is used. Nothing about the original function needs to change and it should have the same input arguments as before and should return all output arguments.
 ```python
 @alter_return_args
-def my_func(input1,input2,input3=0,return_extra_args=None):
+def my_func(input1,input2,input3=0):
     # Whatever code you had here is unchanged
     if input3==0:
         aval=1
@@ -307,6 +307,15 @@ def my_func(input1,input2,input3=0,return_extra_args=None):
     bval=input1+input2
     # Return all output arguments. The decorator will deal with the number of arguments to return
     return aval, bval
+	
+single_val=myfunc(2,3,return_extra_args=False)
+# returns single_val=1
+
+both_vals=myfunc(2,3,return_extra_args=True)
+# returns tuple both_vals=(1,5)
+
+single_val=myfunc(2,3,0,False)
+# This will give an error because return_extra_args must be entered as a keyword argument
 ```
 
 Note that the allow_chaining and stop_chaining functions, as well as the class instance holding the default return behaviour, are also in pyFidA.fidA_processing.alter_return_args.py. If you import the entire pyFidA package when making use of your decorated function, these functions and the default will be available. However, if you have imported only a sub-package, like fidA_sim, you may need to import the fidA_processing sub-package in order to access these other functions.
@@ -364,7 +373,7 @@ An example of the slice(None) usage can be seen in op_takeaverages. An example o
 Sometimes it is also easier to reshape into a 2D array, perform the operation along the desired dimension, then reshape back into the original size.
 
 # General Python differences from Matlab
-In addition to some of the reserved words mentioned above, and the return argument issue, Python uses the engineering convention of j representing the imaginary component of complex numbers. Matlab accepts either i or j. If you are writing function to manipulate complex data (fids, spectra or otherwise), be aware that only j will be accepted.
+In addition to some of the reserved words mentioned previously, and the return argument issue, Python uses the engineering convention of j representing the imaginary component of complex numbers. Matlab accepts either i or j. If you are writing function to manipulate complex data (fids, spectra or otherwise), be aware that only j will be accepted.
 
 One other thing to be aware of is that Matlab has the apostrophe operator that can go on the end of arrays to transpose them.
 ```matlab

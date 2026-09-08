@@ -32,7 +32,7 @@ Some Matlab functions use "in" as the name of an input argument and it is possib
 
 <a name="returnargs"></a>
 ### Behaviour of functions that return multiple output arguments
-The largest difference is in how Python and Matlab handle functions with multiple return arguments . In Matlab, it is possible for a function to return a different number of output arguments based on how it is called:
+The largest difference is in how Python and Matlab handle functions with multiple return (output) arguments. In Matlab, it is possible for a function to return a different number of output arguments based on how it is called:
 ```matlab
 % In Matlab, this returns a phased fid structure and a float value for the zero-th order phase that was calculated
 [phased_fid,ph0]=op_autophase(avg_met)
@@ -46,7 +46,7 @@ phased_fid=op_autophase(avg_met)
 op_plotspec(op_averaging(op_addrcvrs(metfid)))
 ```
 
-In Python, this is not possible. A brief explanation is that, when a Python function has three output arguments, but the user calls it and assigns to just one variable name, Python will "collapse" these outputs. That one variable name will then be for a tuple that contains three elements, one for each return argument. As a result, you may be sending your data through several processing steps and you'll get an error message. However, depending on the functions used, an error may not be apparent until later steps:
+In Python, this is not possible. A brief explanation is that, when a Python function has three variables listed in its return statement, these are returned as one object, a tuple with three elements. If the user calls the function with three variable names, these elements are unpacked, with one assigned to each variable name. However, if the user calls the function with on varaible name, the entire tuple will be returned to that variable as a single object with three elements. There is no way to return just the first element based just on the number of variables assigned during the function call. If a user unintentionally assigns the entire return object to a single variable, errors may not be apparent until later processing steps, which expect a pyFidA.FID object but are instead getting a tuple to deal with:
 ```python
 # In Python, this returns a phased fid structure and a float value 
 # for the zero-th order phase that was calculated
@@ -64,7 +64,7 @@ op_plotspec(phased_fid)
 ```
 Other errors are possible, depending on what the later function is trying to do with the tuple, which can make this problem hard to identify. However, errors of type AttributeError (above) and ValueError (shown below) are most common.
 
-In the case of functions where you want to return, say, 2 out of the 5 possible output arguments, you may get a ValueError. For example, op_combineRcvrs has 5 possible output arguments, but you may only be interested in the first two. In this case, Python can't create a single tuple for all 5 output arguments because there are two variables to assign things to. So the error is thrown when it happens and may be easier to spot than in the case where an unexpected tuple of all output arguments is returned to one variable.
+In the case of functions where you want to return, say, 2 out of the 5 possible output arguments, you may get a ValueError. For example, op_combineRcvrs has 5 possible output arguments, but you may only be interested in the first two. In this case, Python can't create a single tuple for all 5 output arguments because there are two variables to assign things to. So the error is thrown when it happens and may be easier to spot than the above case.
 ```python
 [out_met, out_w]=op_combineRcvrs(in_met,in_w)
 > "ValueError: too many values to unpack (expected 2)"
@@ -83,7 +83,7 @@ phased_fid=op_autophase(avg_met, return_extra_args=False)
 # because we can restrict a function to one output
 averaged_fid=op_averaging(op_addrcvrs(metfid,return_extra_args=False))
 ```
-2. If you find these input arguments cumbersome or you anticipate running a number of lines of code where you know that you will only use the first output argument, you can use allow_chaining() to tell pyFidA that it should only return the first output argument with the processed data in subsequent functions. Note that this only applies to selected pyFidA functions (the ones that have the "return_extra_args" input argument at the end). It does not apply to all Python functions or even all pyFidA functions. It is specifically designed to allow chaining together of processing functions. To end this behaviour and start returning all output arguments from functions, enter stop_chaining().
+2. If you find these input arguments cumbersome or you anticipate running a number of lines of code where you know that you will only use the first output argument, you can use allow_chaining() to tell pyFidA that it should only return the first output argument with the processed data in subsequent functions. Note that this only applies to selected pyFidA functions (the ones that have been decorated with @alter_return_args). It does not apply to all Python functions or even all pyFidA functions. It is specifically designed to allow chaining together of pyFidA processing functions. To end this behaviour and start returning all output arguments from functions, enter stop_chaining().
 Note that you can still use the return_extra_args input argument to override the temporary behaviour set by allow_chaining() and stop_chaining()
 ```python
 # After importing pyFidA, the default behaviour is to return all arguments
@@ -129,7 +129,7 @@ allow_chaining()
 # Back to returning just the first output argument with the processed spectrum
 phased_average_fid=op_autophase(averaged_fid)
 ```
-4. Users can also make use of Python's ability to "pack" multiple variables/return arguments into a list with the \* operator. Although extra argument can be packed into any variable name, it is common to use the underscore '\_' to store all of the extra stuff that the user doesn't need to give a specific name to. This method is not part of pyFidA but it is the only way to return a subset of the output arguments >1. (the return_extra_args and allow_chaining() methods only deal with returning the first output vs returning all output arguments).
+4. Users can also make use of Python's ability to "pack" multiple variables/return arguments into a list with the \* operator. Although extra argument can be packed into any variable name, it is common to use the underscore '\_' to store all of the extra stuff that the user doesn't need to give a specific name to. This method is not part of pyFidA but it is the only way to return a subset of the output arguments >1. (The return_extra_args and allow_chaining() methods only deal with returning the first output vs returning all output arguments).
 ```python
 # This does not work because there are four total output arguments in op_combineRcvrs
 # Setting return_extra_args=True will try to return 4 output arguments to 2 variables.
