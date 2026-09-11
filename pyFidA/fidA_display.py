@@ -12,6 +12,7 @@ module is optional and requires seaborn and pandas to run some functions.
 """
 
 import numpy as np
+from scipy.fft import fftshift,fft,ifft
 import matplotlib.pyplot as plt
 import pandas as pd
 from pyFidA import fidA_io as fio
@@ -21,6 +22,43 @@ import os
 
 # Note that io_readlcmcoord is in the fidA_io module. This module is for display
 # functions only
+
+def plot_cosy(cosydat,contour_levels=None,enforce_symmetry=False,shift_freq=0):
+    # cosydat here is from pyFidA.io_loadspec_brukNMR(os.path.join(pname,'ser'),spectrometer=True,try_raw=True)
+    # where the Fourier transform is done in the direct dimension but not
+    # in the indirect ('extras') dimension
+    outdat=cosydat.copy()
+    # No apodization done
+    if enforce_symmetry and cosydat.sz[0]!=cosydat.sz[1]: # assumes zeroth dimension is larger
+        # zero-fill
+        outdat.fids=np.zeros([outdat.sz[0],outdat.sz[0]],dtype=cosydat.fids.dtype)
+        # assumes 2D
+        outdat.fids[:,:cosydat.sz[1]]=cosydat.fids
+    if contour_levels is None:
+        ppmrange=np.flatnonzero(np.logical_and(cosydat.ppm-shift_freq>0.7,cosydat.ppm-shift_freq<1.7))
+        estmax=np.amax(np.abs(outdat.specs[ppmrange,0]))
+        #contour_levels=np.linspace(0,estmax/100,20)
+        contour_levels=np.linspace(0,50,30)
+    specdat=fftshift(ifft(outdat.specs,axis=1),axes=1)
+    # Apparently the choices here are to take either the minimum or the geometric mean
+    # Not sure if you have to take the abs before the geometric mean
+    # I sort of only need to do this in the water region really but I'm going
+    # to try it on the whole thing first.
+    zdat=np.flipud(specdat)
+    zdat=np.abs(zdat)
+    if enforce_symmetry:
+        water_range=np.flatnonzero(np.logical_and(outdat.ppm>4.4,outdat.ppm<5.3))
+        #zdat_tmp=np.minimum(zdat,zdat.transpose())
+        #zdat[water_range,:]=zdat.transpose()[water_range,:]#zdat_tmp[water_range,:]
+        zdat=np.minimum(zdat,zdat.transpose())
+        #zdat=np.sqrt(zdat*zdat.transpose())
+        
+    # Another idea is to try water removal in every spectrum in the indirect
+    # dimension
+    plt.figure()
+    extent_vals=[extval-shift_freq for extval in [cosydat.ppm[-1],cosydat.ppm[0],cosydat.ppm[-1],cosydat.ppm[0]]]
+    plt.contour(zdat,levels=contour_levels,extent=extent_vals)
+    
 
 def make_df_from_flist(flist,fcontains='',fsuff='.csv',add_cols=None,pname='.',construct_cols=None,idcol='fct',idpre=''):
     """
@@ -474,22 +512,26 @@ if __name__ == '__main__':
     #lcm_dict, info_dict=fio.io_readlcmcoord(os.path.join(pname,'lcm-out',flist2[0],'20250303_hippo.coord'))
     #disp_lcm_spectra(lcm_dict,ax1=None,axlims=[4.2,0.5],whichmets=['PCh','GPC'])
     
-    pname='/Users/nearlabmacbook1/Documents/BrukerData/StressMice'
-    df2=pd.DataFrame()
-    for timept in ['baseline','2week','6week']:
-        with open(os.path.join(pname,timept,'flist_hippo_female')) as f:
-            flist2=f.readlines()
-        flist2=[fn.split(os.sep)[0] for fn in flist2]
-        df1=make_df_from_flist(flist2,pname=os.path.join(pname,timept,'lcm-out'),fcontains='20250303_hippo',add_cols={'timept':timept})
-        df1['mouse_id']=['_'.join(tval.split('_')[5:8]) for tval in df1['fname']]
-        df1['genotype']=['WT']*4+['KO']*4+['WT']*4+['KO']*3
-        df2=pd.concat([df2,df1.copy()],ignore_index=True)
-    df2['y_const']=0.5
-    df2['y_const2']=10
-    #g2=relplot_fixed_err(yerrs='NAA %SD',yerr_is_percent=True,data=df2,x='timept',y='NAA',hue='mouse_id',col='genotype',kind='line')
-    #g2=relplot_fixed_err(yerrs=['y_const2','y_const'],yerr_is_percent=False,data=df2,x='timept',y='NAA',hue='mouse_id',col='genotype',kind='line')
-    g2=lineplot_fixed_err(yerrs='NAA %SD',data=df2[df2.loc[:,'genotype']=='WT'],x='timept',y='NAA',hue='mouse_id')
+    # pname='/Users/nearlabmacbook1/Documents/BrukerData/StressMice'
+    # df2=pd.DataFrame()
+    # for timept in ['baseline','2week','6week']:
+    #     with open(os.path.join(pname,timept,'flist_hippo_female')) as f:
+    #         flist2=f.readlines()
+    #     flist2=[fn.split(os.sep)[0] for fn in flist2]
+    #     df1=make_df_from_flist(flist2,pname=os.path.join(pname,timept,'lcm-out'),fcontains='20250303_hippo',add_cols={'timept':timept})
+    #     df1['mouse_id']=['_'.join(tval.split('_')[5:8]) for tval in df1['fname']]
+    #     df1['genotype']=['WT']*4+['KO']*4+['WT']*4+['KO']*3
+    #     df2=pd.concat([df2,df1.copy()],ignore_index=True)
+    # df2['y_const']=0.5
+    # df2['y_const2']=10
+    # #g2=relplot_fixed_err(yerrs='NAA %SD',yerr_is_percent=True,data=df2,x='timept',y='NAA',hue='mouse_id',col='genotype',kind='line')
+    # #g2=relplot_fixed_err(yerrs=['y_const2','y_const'],yerr_is_percent=False,data=df2,x='timept',y='NAA',hue='mouse_id',col='genotype',kind='line')
+    # g2=lineplot_fixed_err(yerrs='NAA %SD',data=df2[df2.loc[:,'genotype']=='WT'],x='timept',y='NAA',hue='mouse_id')
     
     # fname='/Users/nearlabmacbook1/Documents/BrukerData/StressMice/2week/lcm-out/20230715_121511_768_wang_stress_c640_mR_2week_1_3/20250303_hippo.coord'
     # lcdict1,infodict1=fio.io_readlcmcoord(fname)
     # g1=disp_lcm_ridgeplot(lcdict1,offset=-0.05,plot_MMs='combined')#,figname='/Users/nearlabmacbook1/Documents/Analysis/ADrats/Figures/RidgePlot.png')
+    import pyFidA
+    pname='/Users/nearlabmacbook1/Documents/BrukerS4_Data/PeptideScans/2026-08-31_GAS10_peptide/3'
+    cosydat=pyFidA.io_loadspec_brukNMR(os.path.join(pname,'ser'),spectrometer=True,try_raw=True)
+    plot_cosy(cosydat,enforce_symmetry=True,shift_freq=-0.11)

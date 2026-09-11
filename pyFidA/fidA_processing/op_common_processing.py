@@ -134,14 +134,14 @@ def op_ampScale(indat1,A):
 
     Parameters
     ----------
-    indat1 : FID object
+    indat1 : pyFidA.FID object
         Spectrum to scale.
     A : float
         Amplitude scaling factor
 
     Returns
     -------
-    outdat : FID object
+    outdat : pyFidA.FID object
         The output resulting from amplitude scaling.
     """
     return A*indat1
@@ -154,17 +154,17 @@ def op_addScans(indat1,indat2,subtract=False):
 
     Parameters
     ----------
-    indat1 : FID object
+    indat1 : pyFidA.FID object
         First spectrum to add.
-    indat2 : FID object
+    indat2 : pyFidA.FID object
         Second spectrum to add.
-    subtract : BINARY, optional
+    subtract : boolean, optional
         Indicates whether to or subtract (True or non-zero int) or add (False 
         or 0) the two spectra. The default is False.
 
     Returns
     -------
-    outdat : FID object
+    outdat : pyFidA.FID object
         The output resulting from adding (or subtracting) indat1 and indat2.
 
     """
@@ -199,14 +199,14 @@ def op_subtractScans(indat1,indat2):
 
     Parameters
     ----------
-    indat1 : FID object
+    indat1 : pyFidA.FID object
         First spectrum
-    indat2 : FID object
+    indat2 : pyFidA.FID object
         Second spectrum to subtract from first.
 
     Returns
     -------
-    outdat : FID object
+    outdat : pyFidA.FID object
         The output resulting from subtracting indat2 from indat1.
 
     """
@@ -214,27 +214,87 @@ def op_subtractScans(indat1,indat2):
     return outdat
 
 def op_freqrange(indat,ppmmin,ppmmax):
-    fullspec=indat.specs.copy()
+    """
+    Create a spectrum that limits the frequency range to a selected range of
+    the input spectrum
+
+    Parameters
+    ----------
+    indat : pyFidA.FID object
+        Input spectrum.
+    ppmmin : float
+        Lower limit of the frequency range in ppm.
+    ppmmax : float
+        Upper limit of the frequency range in ppm.
+
+    Returns
+    -------
+    outdat : pyFidA.FID object
+        Output spectrum following frequency range selection.
+
+    """
     outdat=indat.copy()
-    indvals=np.logical_and(np.greater(indat.ppm,ppmmin),np.less(indat.ppm,ppmmax))
-    outdat.specs=fullspec[indvals,...]
-    # Need to redefine the ppm range, which is done by setting the center_freq_ppm
-    # and the spectralwidth
+    indvals=np.logical_and(indat.ppm>ppmmin,indat.ppm<ppmmax)
+    outdat.specs=indat.specs[indvals,...]
+    # Need to redefine the ppm range, which is done by setting the 
+    # center_freq_ppm and the spectralwidth
     outdat.center_freq_ppm=ppmmin+(ppmmax-ppmmin)/2
     outdat.spectralwidthppm=np.abs(ppmmax-ppmmin)
     outdat.flags['freqranged']=True
     return outdat
 
 def freqrange(inspec,ppm,ppmmin,ppmmax):
-    # differs from op_freqrange in that that operates on a fid object, whereas
-    # this only requires the frequency spectrum and ppm. It seems to have been
-    # moved or removed in later fid-A versions so maybe can get rid of it?
+    """
+    Limit an array of spectrum values to a frequency range when given the
+    corresponding ppm values for the array. Differs from op_freqrange in
+    that it takes the arrays for spectral values and ppm rather than a
+    pyFidA.FID object (useful for some peak-fitting functions)
+
+    Parameters
+    ----------
+    inspec : numpy.ndarray
+        Values for the spectrum. Can be multi-dimensional array with first
+        dimension corresponding to frequency.
+    ppm : numpy.ndarray
+        1D array of frequency values corresponding to the spectrum values.
+    ppmmin : float
+        Lower limit of the frequency range in ppm.
+    ppmmax : float
+        Upper limit of the frequency range in ppm.
+
+    Returns
+    -------
+    ppmpart : numpy.ndarray
+        1D array of frequency values within the specified frequency range.
+    specpart : numpy.ndarray
+        Output spectrum values following frequency range selection.
+
+    """
     indvals=np.logical_and(np.greater(ppm,ppmmin),np.less(ppm,ppmmax))
     specpart=inspec[indvals,...]
     ppmpart=ppm[indvals]
     return ppmpart,specpart
 
 def op_zeropad(indat,zpfact):
+    """
+    Add zeros to the end of time domain MRS data (interpolate the data in the
+    frequency domain)
+
+    Parameters
+    ----------
+    indat : pyFidA.FID object
+        Input spectrum with fid to be padded. Can have multi-dimensional data.
+    zpfact : float
+        Factor by which the number of points in the fid will be increased. eg.
+        if zpfact=2 then the number of zeros added to the end of the fid will
+        be equal to the number of points in the original spectrum.
+
+    Returns
+    -------
+    outdat : pyFidA.FID object
+        Output spectrum following zero-padding of the fid.
+
+    """
     outdat=indat.copy()
     continue_flag='y'
     if indat.flags['zeropadded']:

@@ -15,7 +15,6 @@ from scipy.linalg import hankel,svd
 from pyFidA.fidA_common import spec_from_fids, FidAException, phase
 from .op_common_processing import op_addphase, op_freqrange, op_zeropad, add_phase, add_phase1
 from .alter_return_args import alter_return_args
-from .op_splitspecs import op_takesubspec
 
 def op_addphaseSubspec(indat,ph0):
     """
@@ -154,7 +153,7 @@ def op_addrcvrs(indat,phasept=0,mode='w',coilcombos=None):
 def op_alignAllScans(inlist, tmax=None, ref='f', mode='fp',freq_range=None,initPars=None):
     # Make sure input is a list of length 2 or greater
     if not isinstance(inlist,list) or len(inlist)<2:
-        TypeError('ERROR: The input must be a list of two or more MRS datasets in FID-A FID object form. ABORTING!!')
+        TypeError('ERROR: The input must be a list of two or more MRS datasets in pyFidA.FID object form. ABORTING!!')
     # Figure out what reference spectrum will be
     if ref=='f':
         inref=inlist[0]
