@@ -1246,7 +1246,7 @@ def op_HSVDfit(indat,ppmlim=[0.2,4.2],Kinit=20,M=None,plot_bool=True):
         ax1[1].set_title('Water Suppressed Spectrum')
     if not np.sum(amp[ppminrange]):
         print('######## The fit did not work. Try reducing the number of components K. ######')
-    return [model, resids, K, ppms, amp, alpha, ph]
+    return [model, resids, K, ppms, amp, alpha, ph, w]
 
 def op_leftshift(indat,ls):
     outdat=indat.copy()

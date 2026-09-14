@@ -519,7 +519,7 @@ def sim_readout(d_in,Hlist,npts,sw,linewidth,rcvPhase=0,shape='L',center_freq_pp
     # Note that you need to take the complex conjugate for the data to be
     # correct in the spectral domain.
     outfids=sum(out_parts,start=0*out_parts[0]).conj()
-    out1=FID(outfids,sw,1*Hlist[0]._Bfield*Hlist[0]._gamma,te=0,tr=0,sequence='simulated',nucleus=Hlist[0]._nucleus,dims=['t'],center_freq_ppm=center_freq_ppm)
+    out1=FID(outfids,sw,1*Hlist[0]._Bfield*Hlist[0]._gamma,te=0,tr=0,sequence='simulated',nucleus=[Hlist[0]._nucleus],dims=['t'],center_freq_ppm=center_freq_ppm)
     return out1,d_out
         
 def sim_rotate(d_in,Hlist,anglein=90,whichax='x'):

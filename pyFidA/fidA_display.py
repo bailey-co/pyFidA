@@ -23,41 +23,70 @@ import os
 # Note that io_readlcmcoord is in the fidA_io module. This module is for display
 # functions only
 
-def plot_cosy(cosydat,contour_levels=None,enforce_symmetry=False,shift_freq=0):
+def plot_cosy(cosydat,clevels=None,enforce_symmetry=False,shift_freq=0,plot_ax=None,**kwargs):
     # cosydat here is from pyFidA.io_loadspec_brukNMR(os.path.join(pname,'ser'),spectrometer=True,try_raw=True)
     # where the Fourier transform is done in the direct dimension but not
     # in the indirect ('extras') dimension
     outdat=cosydat.copy()
-    # No apodization done
+    if clevels is None:
+        clevels=15
+    # If using symmetry, need symmetric matrix. Zero pad. No apodization done
     if enforce_symmetry and cosydat.sz[0]!=cosydat.sz[1]: # assumes zeroth dimension is larger
         # zero-fill
         outdat.fids=np.zeros([outdat.sz[0],outdat.sz[0]],dtype=cosydat.fids.dtype)
         # assumes 2D
         outdat.fids[:,:cosydat.sz[1]]=cosydat.fids
-    if contour_levels is None:
-        ppmrange=np.flatnonzero(np.logical_and(cosydat.ppm-shift_freq>0.7,cosydat.ppm-shift_freq<1.7))
-        estmax=np.amax(np.abs(outdat.specs[ppmrange,0]))
-        #contour_levels=np.linspace(0,estmax/100,20)
-        contour_levels=np.linspace(0,50,30)
+    
+    # Now the the ifft in the indirect dimension
     specdat=fftshift(ifft(outdat.specs,axis=1),axes=1)
-    # Apparently the choices here are to take either the minimum or the geometric mean
-    # Not sure if you have to take the abs before the geometric mean
-    # I sort of only need to do this in the water region really but I'm going
-    # to try it on the whole thing first.
-    zdat=np.flipud(specdat)
+    zdat=specdat.transpose()
+    #zdat=np.fliplr(specdat)
     zdat=np.abs(zdat)
+    # The choices for symmetry are to either take the geometric mean or the minimum.
     if enforce_symmetry:
-        water_range=np.flatnonzero(np.logical_and(outdat.ppm>4.4,outdat.ppm<5.3))
-        #zdat_tmp=np.minimum(zdat,zdat.transpose())
-        #zdat[water_range,:]=zdat.transpose()[water_range,:]#zdat_tmp[water_range,:]
         zdat=np.minimum(zdat,zdat.transpose())
         #zdat=np.sqrt(zdat*zdat.transpose())
-        
-    # Another idea is to try water removal in every spectrum in the indirect
-    # dimension
-    plt.figure()
-    extent_vals=[extval-shift_freq for extval in [cosydat.ppm[-1],cosydat.ppm[0],cosydat.ppm[-1],cosydat.ppm[0]]]
-    plt.contour(zdat,levels=contour_levels,extent=extent_vals)
+    if plot_ax is None:
+        f1,plot_ax=plt.subplots(1,1)
+    if 'extent' not in kwargs:
+        kwargs['extent']=[extval-shift_freq for extval in [cosydat.ppm[0],cosydat.ppm[-1],cosydat.ppm[-1],cosydat.ppm[0]]]
+    plot_ax.contour(zdat,levels=clevels,**kwargs)
+    plot_ax.set_xlim([kwargs['extent'][0],kwargs['extent'][1]])
+    plot_ax.set_ylim([kwargs['extent'][3],kwargs['extent'][2]])
+    plot_ax.set_xlabel('Frequency (direct dim, ppm)')
+    plot_ax.set_ylabel('Frequency (indirect dim, ppm)')
+    return zdat
+
+def plot_cosy_with_1dproj(cosydat,clevels=None,enforce_symmetry=False,shift_freq=0,ppmmin=-0.25,ppmmax=10,ymax=3000,tstr='2D COSY spectrum',**kwargs):
+    # Useful kwargs include extent and zorder (if you are annotating on top or underneath the COSY)
+    # Create a figure with a 5x5 grid, where the top row and the last column
+    # will be for the projections.
+    f1=plt.figure(constrained_layout=True)
+    f1.set_size_inches(4,4.5)
+    gs=f1.add_gridspec(5,5)
+    ax_cosy=f1.add_subplot(gs[1:,:-1])
+    ax_dir=f1.add_subplot(gs[0,:-1])
+    ax_indir=f1.add_subplot(gs[1:,-1])
+    if clevels is None:
+        clevels=np.r_[25:130:5]
+    zdat=plot_cosy(cosydat,clevels=clevels,enforce_symmetry=enforce_symmetry,shift_freq=shift_freq,plot_ax=ax_cosy,**kwargs)
+    ax_cosy.set_xlim([ppmmax,ppmmin])
+    ax_cosy.set_ylim([ppmmax,ppmmin])
+    spec_dir=np.amax(zdat,axis=0)
+    # For projection in the indirect dimension, need to avoid water signal
+    ppm_idx=np.flatnonzero(np.logical_or((cosydat.ppm-shift_freq)<4.5,(cosydat.ppm-shift_freq)>5.1))
+    ppm_indir=np.linspace(cosydat.ppm[0],cosydat.ppm[-1],zdat.shape[0])
+    spec_indir=np.amax(zdat[:,ppm_idx],axis=1)[::-1]
+    ax_indir.plot(spec_indir,ppm_indir-shift_freq)
+    ax_indir.set_ylim(ax_cosy.get_ylim())
+    ax_indir.set_xlim([0,ymax])
+    ax_indir.axis('off')
+    ax_dir.plot(cosydat.ppm-shift_freq,spec_dir)
+    ax_dir.set_xlim(ax_cosy.get_xlim())
+    ax_dir.set_ylim([0,ymax])
+    ax_dir.axis('off')
+    ax_dir.set_title(tstr,x=0.55)
+    return f1,ax_cosy,ax_dir,ax_indir
     
 
 def make_df_from_flist(flist,fcontains='',fsuff='.csv',add_cols=None,pname='.',construct_cols=None,idcol='fct',idpre=''):
@@ -534,4 +563,8 @@ if __name__ == '__main__':
     import pyFidA
     pname='/Users/nearlabmacbook1/Documents/BrukerS4_Data/PeptideScans/2026-08-31_GAS10_peptide/3'
     cosydat=pyFidA.io_loadspec_brukNMR(os.path.join(pname,'ser'),spectrometer=True,try_raw=True)
+    cosydat_water_rm=cosydat.copy()
+    for specct in range(cosydat_water_rm.sz[1]):
+        tmplist=pyFidA.op_HSVDfit(cosydat[:,specct],ppmlim=[4.45,5],plot_bool=False)
+        cosydat_water_rm[:,specct]=tmplist[1]
     plot_cosy(cosydat,enforce_symmetry=True,shift_freq=-0.11)
