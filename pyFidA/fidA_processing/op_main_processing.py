@@ -146,9 +146,8 @@ def op_addrcvrs(indat,phasept=0,mode='w',coilcombos=None):
     return outdat,fids_presum,specs_presum,coilcombos
 
 # Matlab fidA has a huge number of align functions. I have attempted to simplify
-# and avoid duplicating code. However, I did create functions with the Matlab
-# names for those familiar with the Matlab calls. The "fundamental" alignment
-# function here in Python with the fitting functions is op_alignScans
+# and avoid duplicating code by ultimately calling op_alignScans for the 
+# alignment wherever possible.
 @alter_return_args
 def op_alignAllScans(inlist, tmax=None, ref='f', mode='fp',freq_range=None,initPars=None):
     # Make sure input is a list of length 2 or greater
@@ -447,6 +446,53 @@ def op_alignrcvrs(indat,phasept=0,mode='w',coilcombos=None):
 
 @alter_return_args
 def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPars=None):
+    """
+    Register 1D complex spectrum infloat to 1D complex spectrum inref.
+
+    Parameters
+    ----------
+    inref : pyFidA.FID object
+        Spectrum to register to.
+    infloat : pyFidA.FID object
+        Spectrum to be registered.
+    tmax : float, optional
+        Use fid information up to this time point, in seconds. The default is 
+        None, which will use the data to find the point where the SNR of the 
+        fid drops below 5.
+    mode : str, optional
+        Parameters to vary for registration:
+            'f' - frequency align only
+            'p' - phase align only
+            'fp' or 'pf' - frequency and phase align
+        The default is 'fp'.
+    freq_range : 2-element list, optional
+        Frequency region to include in the fit in the form [ppmmin,ppmmax]. 
+        Note that the fit is done in the time domain but these limits will
+        adjust the data using op_freqrange to obtain the fit parameters on the
+        relevant points. The default is None, which uses the full frequency 
+        range.
+    initPars : list, optional
+        Initial frequency and/or phase values (depends on mode) to use in the 
+        fit. The default is None, which will use zeros for all fit parameters.
+
+    Raises
+    ------
+    FidAException
+        inref and/or infloat are not 1D.
+    ValueError
+        Unrecognized value for input parameter mode.
+
+    Returns
+    -------
+    out1 : pyFidA.FID object
+        Output of infloat after frequency and/or phase adjustment to register
+        to the spectrum inref.
+    ph : float
+        Zeroth-order phase shift in degrees used for alignment
+    frq : float
+        Frequency shift in Hz used for alignment.
+
+    """
     # Based on the Matlab code. The idea here is that we have parameters operating
     # on complex data, but least squares calculation for minimizing will do 
     # strange things with complex data. So one alternative is to concatenate the
