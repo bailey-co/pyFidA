@@ -2,8 +2,20 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jun  5 14:41:38 2026
+pyFidA.fidA_processing.op_concatenation.py
 
-@author: nearlabmacbook1
+@author: Colleen Bailey (cbailey@sri.utoronto.ca), based on Matlab code by 
+    Jamie Near
+
+pyFidA processing functions that are needed for many basic operations in other
+processing steps. Note that this module needs to be imported first in 
+pyFidA.fidA_processing.__init__.py so that these functions are available
+before other modules in the fidA_processing sub-package are loaded.
+
+Functions:
+    * op_concatAverages
+    * op_concatFreq
+    * op_concatSubspecs
 """
 
 import numpy as np
@@ -12,15 +24,17 @@ from pyFidA.fidA_common import FidAException
 def op_concatAverages(indat1, indat2):
     """
     Concatenate two scans along the averages dimension. Two scans with 50 
-    averages each will now look like a single scan with 100 averages. For
-    looping, it is possible to enter None as the first input. In this case, the
-    function will simply return the second input.
+    averages, the output will be a single pyFidA.FID object with 100 averages. 
+    Scans without an explicit averages dimension can also be entered (and will
+    be expanded to have an averages dimension of size 1). For looping, it is 
+    possible to enter None as the first input. In this case, the function will 
+    simply return the second input.
 
     Parameters
     ----------
-    indat1 : FID object
+    indat1 : pyFidA.FID object
         First input spectra to be concatenated.
-    indat2 : TFID object
+    indat2 : pyFidA.FID object
         Second input spectra to be concatenated.
 
     Returns
@@ -28,18 +42,16 @@ def op_concatAverages(indat1, indat2):
     outdat : FID object
         Output following concatenation of inputs along the averages dimension.
     """
-    # I don't fully understand this case but Jamie includes it in Matlab for the
-    # case of looping.
     if indat1 is None:
         outdat=indat2.copy()
     else:
-        # Jamie has a check that both inputs have the same number of averages
-        # (unless one or both input have no averages) but I don't understand 
-        # why that restriction exists. I just need to expand_dims for singleton 
-        # cases. The other dimensions have to match but np.concatenate will 
-        # already fail if that is untrue
+        dims1_noavg=[dimnm for dimnm in indat1._dimlist if dimnm!='averages']
+        dims2_noavg=[dimnm for dimnm in indat2._dimlist if dimnm!='averages']
+        if len(dims1_noavg)!=len(dims2_noavg) or any([d1!=d2 for d1,d2 in zip(dims1_noavg,dims2_noavg)]):
+            raise FidAException('ERROR: Data dimensions other than averages must match. indat1 has dims {:s}. indat2 has dims {:s}'.format(str(indat1._dimlist),str(indat2._dimlist)))
+        # Deal with absent averages dimensions, if squeezed out
         if 'averages' not in indat1 and 'averages' not in indat2:
-            avgdim=max(indat1.dims.values())+1
+            avgdim=indat1.ndim
             fid1=np.expand_dims(indat1.fids,axis=avgdim)
             fid2=np.expand_dims(indat2.fids,axis=avgdim)
             dimlist=indat1._dimlist.copy()+['averages']
@@ -53,30 +65,59 @@ def op_concatAverages(indat1, indat2):
             fid1=indat1.fids
             avgdim=indat1.dims['averages']
             dimlist=indat1._dimlist.copy()
-        else: # both dimensions have averages. Simplest case
+        else: # both dimensions have averages.
             fid1=indat1.fids
             fid2=indat2.fids
             avgdim=indat1.dims['averages']
             dimlist=indat1._dimlist.copy()
-        outfid=np.concatenate((fid1,fid2),axis=avgdim)
         outdat=indat1.copy()
-        outdat.fids=outfid
+        outdat.fids=np.concatenate((fid1,fid2),axis=avgdim)
         outdat._dimlist=dimlist
         outdat._rawAverages=indat1._rawAverages+indat2._rawAverages
         outdat.flags['averaged']=False
     return outdat
     
 def op_concatFreq(indat1,indat2,shift=None):
-    # I don't understand the use case for this. Maybe for plotting but then
-    # you should just deal with that in the plot. Function seems incomplete in
-    # Matlab. Documentation hasn't been updated. Lots of concatAverages has 
-    # been copied and commented out but not deleted.
-    # Note that things are implemented quite differently here compared with
-    # Matlab because of how ppm is defined by the spectral width and center 
-    # frequency, rather than being directly settable.
-    if indat1.dims['t'] != indat2.dims['t']:
-        # Really I want the actual 't' values to be the same, no? Otherwise, their
-        # ppm values can't be easily concatenated alongside one another
+    """
+    Note that this function "stitches" two spectra together so that they can
+    can appear side-by-side in a plot. There is a check that the spectral
+    resolutions match but the center frequency of indat2 is adjusted based on
+    shift to determine how much space will separate it from indat1 in the ppm
+    dimension. The time vector of the output spectrum will therefore no longer
+    have a sensible temporal meaning because of the "apparent" new spectral 
+    width.
+
+    Parameters
+    ----------
+    indat1 : pyFidA.FID
+        First spectrum in the ppm dimension.
+    indat2 : pyFidA.FID
+        Second spectrum to be concatenated after indat1 in the ppm dimension.
+    shift : float, optional
+        The point, in ppm, where the second spectrum should be place in the
+        concatenation. The default is None, which will place the second spectrum
+        where the first ends.
+
+    Raises
+    ------
+    FidAException
+        The time vectors for the two spectra do not match (and therefore the
+        spectral resolutions do not match, nor do the spectral widths.
+    ValueError
+        The shift provided is less than the spectral width of indat1.
+
+    Returns
+    -------
+    outdat : pyFidA.FID
+        Output "spectrum" where indat1 and indat2 will appear alongside each
+        other in the ppm dimension. Note that the temporal information will be
+        meaningless in most cases unless the spectra truly have the ppm values
+        that they have been assigned. The outdat spectrum should therefore not
+        be used for further processing and seems like it would mainly be useful
+        for plotting.
+
+    """
+    if all([indat1.t==indat2.t]):
         raise FidAException('time/frequency dimension must be the same for both inputs.')
     dppm=np.abs(indat1.ppm[1]-indat1.ppm[0])
     if shift is None:
@@ -99,8 +140,6 @@ def op_concatFreq(indat1,indat2,shift=None):
         dummy_freqrange=npts*dppm # Note that you may end up with a shift slightly different than specified
         newspec=np.concatenate((indat1.specs,dummyspec),axis=indat1.dims['t'])
         newspec=np.concatenate((newspec,indat2.specs),axis=indat1.dims['t'])
-        # The ppm calculation has to work differently because of how I've set
-        # up the setters in the FID object
         newspectralwidthppm=indat1.spectralwidthppm+dummy_freqrange+indat2.spectralwidthppm
         if indat1.ppm[-1]<indat1.ppm[0]:
             newcenterfreq=indat1.ppm[-1]+newspectralwidthppm/2
@@ -110,23 +149,53 @@ def op_concatFreq(indat1,indat2,shift=None):
     outdat.specs=newspec
     outdat.spectralwidthppm=newspectralwidthppm
     outdat.center_freq_ppm=newcenterfreq
-    # Matlab sets the averaged flag to false. I think it's a holdover from
-    # copying from op_concatAverages and doesn't belong so I've removed it. But
-    # I'm also not sure it matters since you don't really want to be doing new 
-    # operations on this FID because its time domain representation is 
-    # completely messed up.
     return outdat
     
 def op_concatSubspecs(indat1,indat2):
-    if indat1.dims['subspecs'] != indat2.dims['subspecs'] or indat1.dims['t'] != indat2.dims['t'] or indat1.dims['averages'] != indat2.dims['averages'] or indat1.dims['coils'] != indat2.dims['coils']:
-        raise FidAException('ERROR: subspecs dimensions must be the same for both inputs')
-    # if there is no subspecs dimension, make one. Since we already checked that
-    # the dimensions are the same, we can do fewer cases than op_concatAverages
+    """
+    Concatenate two scans along the subspecs dimension. Two scans with 2 
+    subspecs each will not look like a single scan with 4 subspecs. Scans 
+    without an explicit subspecs dimension can also be entered (and will
+    be expanded to have a subspecs dimension of size 1).
+
+    Parameters
+    ----------
+    indat1 : pyFidA.FID
+        First input spectrum with subspecs to be concatenated.
+    indat2 : pyFidA.FID
+        Second input spectrum with subspecs to be concatenated.
+
+    Raises
+    ------
+    FidAException
+        Thrown when dimensions (other than subspecs) do not match for the two 
+        input subspecs.
+
+    Returns
+    -------
+    outdat : pyFidA.FID
+        Output spectrum with all subspecs concatenated.
+
+    """
+    dims1_noss=[dimnm for dimnm in indat1._dimlist if dimnm!='subspecs']
+    dims2_noss=[dimnm for dimnm in indat2._dimlist if dimnm!='subspecs']
+    if len(dims1_noss)!=len(dims2_noss) or any([d1!=d2 for d1,d2 in zip(dims1_noss,dims2_noss)]):
+        raise FidAException('ERROR: Data dimensions other than subspecs must match. indat1 has dims {:s}. indat2 has dims {:s}'.format(str(indat1._dimlist),str(indat2._dimlist)))
     if 'subspecs' not in indat1 and 'subspecs' not in indat2:
-        ssdim=max(indat1.dims.values())+1
+        ssdim=indat1.ndim
         fid1=np.expand_dims(indat1.fids,axis=ssdim)
         fid2=np.expand_dims(indat2.fids,axis=ssdim)
         dimlist=indat1._dimlist.copy()+['subspecs']
+    elif 'subspecs' not in indat1 and 'subspecs' in indat2:
+        fid1=np.expand_dims(indat1.fids,axis=indat2.dims['subspecs'])
+        fid2=indat2.fids
+        ssdim=indat2.dims['subspecs']
+        dimlist=indat2._dimlist.copy()
+    elif 'subspecs' in indat1 and 'subspecs' not in indat2:
+        fid2=np.expand_dims(indat2.fids,axis=indat1.dims['subspecs'])
+        fid1=indat1.fids
+        ssdim=indat1.dims['subspecs']
+        dimlist=indat1._dimlist.copy()
     else: # both dimensions have averages. Simplest case
         fid1=indat1.fids
         fid2=indat2.fids

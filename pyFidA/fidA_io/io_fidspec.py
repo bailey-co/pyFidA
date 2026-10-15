@@ -685,6 +685,9 @@ def io_loadspec_brukNMR(fname,spectrometer=True,try_raw=False,return_info_dict=F
             # At least for PV6.0.1, the order seems to be t, averages, coils; but I'm transposing to get t, coils, averages, extras. Will assume anything else is at the end.
             ncoil=dic_method['PVM_EncNReceivers'].value
             n_av=dic_method['PVM_NAverages'].value
+        else:
+            ncoil=1
+            n_av=1
         # Dimensions should agree but, if not, fids_raw will be reshaped along "extras"
         n_extra=int(len(fids_raw)/npts/ncoil/n_av)
         if n_extra>1:
