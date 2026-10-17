@@ -2,9 +2,64 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Aug 18 12:29:21 2022
-fidA_processing.op_main_processing.py
+pyFidA.fidA_processing.op_main_processing.py
 
-@author: cbailey, based on Matlab code by Jamie Near
+@author: Colleen Bailey (cbailey@sri.utoronto.ca), based on Matlab code by 
+    Jamie Near
+
+pyFidA processing functions that don't fit in other fidA_processing modules.
+These include coil combination, frequency/phase alignment functions, autophase,
+averaging, frequency shifting, HSVD water removal, bad average removal, etc.
+
+Functions:
+    op_addphaseSubspec,
+    op_addrcvrs,
+    op_alignAllScans,
+    op_alignAllScans_fd,
+    op_alignAverages,
+    op_alignAverages_fd,
+    op_alignISIS,
+    op_alignMPSubspecs,
+    op_alignMPSubspecs_fd,
+    op_alignScans,
+    op_alignScans_fd,
+    op_alignrcvrs,
+    op_arsos,
+    op_autophase,
+    op_averaging,
+    op_blockAvg,
+    op_combineRcvrs,
+    op_combinesubspecs,
+    op_complexConj,
+    op_dccorr,
+    op_downsamp,
+    op_ecc,
+    op_ecc_klose,
+    op_fddccorr,
+    op_filter,
+    op_fourStepCombine,
+    op_freqAlignAverages,
+    op_freqAlignAverages_fd,
+    op_freqshift,
+    op_freqshiftSubspec,
+    op_getcoilcombos,
+    op_getcoilcombos_specReg,
+    op_HSVDfit,
+    op_leftshift,
+    op_matchLW,
+    op_median,
+    op_movef0,
+    op_phaseAlignAverages,
+    op_phaseAlignAverages_fd,
+    op_ppmref,
+    op_removeWater,
+    op_rmNworstaverages,
+    op_rmbadaverages,
+    op_rmworstaverage,
+    op_squeeze,
+    op_timerange,
+    op_unfilter,
+    op_zerotrim
 """
 
 import matplotlib.pyplot as plt
@@ -447,7 +502,8 @@ def op_alignrcvrs(indat,phasept=0,mode='w',coilcombos=None):
 @alter_return_args
 def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPars=None):
     """
-    Register 1D complex spectrum infloat to 1D complex spectrum inref.
+    Register 1D complex spectrum infloat to 1D complex spectrum inref with
+    frequency and/or phase adjustments.
 
     Parameters
     ----------
@@ -457,8 +513,8 @@ def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPar
         Spectrum to be registered.
     tmax : float, optional
         Use fid information up to this time point, in seconds. The default is 
-        None, which will use the data to find the point where the SNR of the 
-        fid drops below 5.
+        None, which will find the point where the SNR of the infloat fid drops 
+        below 5.
     mode : str, optional
         Parameters to vary for registration:
             'f' - frequency align only
@@ -468,9 +524,8 @@ def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPar
     freq_range : 2-element list, optional
         Frequency region to include in the fit in the form [ppmmin,ppmmax]. 
         Note that the fit is done in the time domain but these limits will
-        adjust the data using op_freqrange to obtain the fit parameters on the
-        relevant points. The default is None, which uses the full frequency 
-        range.
+        adjust the data using op_freqrange to fit the relevant points. The 
+        default is None, which uses the full frequency range.
     initPars : list, optional
         Initial frequency and/or phase values (depends on mode) to use in the 
         fit. The default is None, which will use zeros for all fit parameters.
@@ -493,20 +548,16 @@ def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPar
         Frequency shift in Hz used for alignment.
 
     """
-    # Based on the Matlab code. The idea here is that we have parameters operating
-    # on complex data, but least squares calculation for minimizing will do 
-    # strange things with complex data. So one alternative is to concatenate the
-    # real and imaginary parts of the data into a single vector, twice as long
-    # and compare all components.
+    # curve_fit does not handle complex data. Fitting functions concatenate
+    # the real and imaginary parts of the data into a single vector.
     def freqShiftComplexNest(in2,f):
-        #np.r_[0:(len(in2))*infloat.dwelltime:infloat.dwelltime]
-        fid1=in2[:len(in2)//2]+1j*in2[len(in2)//2:]#in2.copy()#flatten()
+        fid1=in2[:len(in2)//2]+1j*in2[len(in2)//2:]
         t=np.linspace(0,(len(fid1)-1)*infloat_range.dwelltime,len(fid1))
         y=fid1*np.exp(-1j*t.T*f*2*np.pi)
         y=np.r_[np.real(y),np.imag(y)]
         return y
     def phaseShiftComplexNest(in2,p):
-        fid1=in2[:len(in2)//2]+1j*in2[len(in2)//2:]#in2.flatten()
+        fid1=in2[:len(in2)//2]+1j*in2[len(in2)//2:]
         y=add_phase(fid1,p)
         y=np.r_[np.real(y),np.imag(y)]
         return y
@@ -516,6 +567,7 @@ def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPar
         y=add_phase(fid1*np.exp(-1j*t.T*f*2*np.pi),p)
         y=np.r_[np.real(y),np.imag(y)]
         return y
+    # Initial attempt at fitting first order phase. Likely to be removed
     def freqPhasePhase1ShiftComplexNest(in2,f,p0,p1):
         fid1=in2[:len(in2)//2]+1j*in2[len(in2)//2:]
         t=np.linspace(0,(len(fid1)-1)*infloat_range.dwelltime,len(fid1))
@@ -523,11 +575,6 @@ def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPar
         y=np.r_[np.real(y),np.imag(y)]
         return y
     
-    # Matlab runs a bunch of checks but the main thing is that the spectra have 
-    # to be 1D in order for the fitting to work correctly. So that is the main 
-    # check here that raises an error and other checks only run if that fails, 
-    # as a way to provide extra info about what needs to be done (averaging, 
-    # coil combination, etc.)
     if not (inref.ndim==1 and infloat.ndim==1):
         if 'coils' in inref or 'coils' in infloat:
             raise FidAException('ERROR: Only makes sense to do this after channels have been combined using op_addrcvrs. ABORTING!!')
@@ -540,16 +587,11 @@ def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPar
         initPars=[0]*len(mode)
     # Changed from Matlab to find a point based on SNR if no value input. Previous default was 0.5 s.
     if tmax is None:
-        slicetmp=[0]*infloat.ndim
-        slicetmp[0]=slice(None)
-        sig=np.abs(infloat.fids[tuple(slicetmp)])
-        slicetmp[0]=slice(int(np.ceil(0.75*infloat.sz[0])),None)
-        noise=np.std(np.real(infloat.fids[tuple(slicetmp)]),axis=0)
+        sig=np.abs(infloat.fids)
+        noise=np.std(np.real(infloat.fids[:np.ceil(0.75*infloat.sz[0])]),axis=0)
         tmaxpt=np.flatnonzero(sig/noise>5)[-1]
         tmax=infloat.t[tmaxpt]
         print('tmax = {:.2e} ms'.format(tmax*1000))
-    # curve_fit needs an array of floats to fit to, so putting the real and imaginary components
-    # into one longer real-valued vector for fitting
     if freq_range is not None:
         inref_range=op_freqrange(inref, freq_range[0], freq_range[1])
         infloat_range=op_freqrange(infloat, freq_range[0], freq_range[1])
@@ -560,16 +602,16 @@ def op_alignScans(inref, infloat, tmax=None, mode='fp', freq_range=None, initPar
     baseref=np.r_[np.real(inref_range.fids[whichpts]),np.imag(inref_range.fids[whichpts])]
     xdata=np.r_[np.real(infloat_range.fids[whichpts]),np.imag(infloat_range.fids[whichpts])]
     if mode.lower()=='f':
-        parsFit,pcov=curve_fit(freqShiftComplexNest,xdata.squeeze(),baseref.squeeze(),initPars, maxfev=5000)
+        parsFit,pcov=curve_fit(freqShiftComplexNest,xdata,baseref,initPars, maxfev=5000)
         frq=parsFit[0]; ph=0;
     elif mode.lower()=='p':
-        parsFit,pcov=curve_fit(phaseShiftComplexNest,xdata.squeeze(),baseref.squeeze(),initPars, maxfev=5000)
+        parsFit,pcov=curve_fit(phaseShiftComplexNest,xdata,baseref,initPars, maxfev=5000)
         ph=parsFit[0]; frq=0;
     elif mode.lower()=='fp' or mode.lower()=='pf':
-        parsFit,pcov=curve_fit(freqPhaseShiftComplexNest,xdata.squeeze(),baseref.squeeze(),initPars, maxfev=5000)
+        parsFit,pcov=curve_fit(freqPhaseShiftComplexNest,xdata,baseref,initPars, maxfev=5000)
         frq=parsFit[0]; ph=parsFit[1];
     elif mode.lower()=='fpp':
-        parsFit,pcov=curve_fit(freqPhasePhase1ShiftComplexNest,xdata.squeeze(),baseref.squeeze(),initPars, maxfev=5000)
+        parsFit,pcov=curve_fit(freqPhasePhase1ShiftComplexNest,xdata,baseref,initPars, maxfev=5000)
         frq=parsFit[0]; ph=[parsFit[1],parsFit[2]]
     else:
         raise ValueError('ERROR: unrecognized mode. Please enter either "f", "p" or "fp"')
