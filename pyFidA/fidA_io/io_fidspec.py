@@ -948,13 +948,14 @@ def io_writespec_niimrs(indat,outfile,write_json=False,dim_tags=None):
             for dimct,eachdim in enumerate(indat._dimlist[1:]):
                 dim_tags[dimct]=reverse_dimtag_dict[eachdim]
     newdat=np.expand_dims(indat.fids,axis=[0,1,2])
-    nii_obj=gen_nifti_mrs(newdat,indat.dwelltime,indat.txfreq/1e6,nucleus=indat.nucleus[0],dim_tags=dim_tags)
+    nii_obj=gen_nifti_mrs(newdat,indat.dwelltime,indat.txfreq/1e6,nucleus=indat.nucleus[0],dim_tags=dim_tags,no_conj=True)
     if indat.te is not None:
         nii_obj.hdr_ext.set_standard_def('EchoTime',indat.te/1000)
     if indat.tr is not None:
         nii_obj.hdr_ext.set_standard_def('RepetitionTime',indat.tr/1000)
     if indat.sequence!='None':
         nii_obj.hdr_ext.set_standard_def('SequenceName',indat.sequence)
+    nii_obj.hdr_ext.set_standard_def('TxOffset',indat.center_freq_ppm)
     nii_obj.save(outfile)
     if write_json:
         json_file=outfile.parent.joinpath(outfile.stem+'.json')
@@ -1007,7 +1008,13 @@ def nii_to_fidA(out1):
         seq_name=hdr_ext['SequenceName']
     else:
         seq_name='None'
-    outnii=FID(fids,sw,out1.spectrometer_frequency[0]*1e6,te,tr,seq_name,dims=final_dimlist,hdr=hdr,hdr_ext=hdr_ext,nucleus=out1.nucleus)
+    # Need to find an nii_mrs file to see if I've got this right. Should it be the offset from 0?
+    # Will need to change in write_mrs as well if I've got the definition wrong.
+    if 'TxOffset' in hdr_ext:
+        center_freq_ppm=hdr_ext['TxOffset']
+    else:
+        center_freq_ppm=4.65
+    outnii=FID(fids,sw,out1.spectrometer_frequency[0]*1e6,te,tr,seq_name,dims=final_dimlist,hdr=hdr,hdr_ext=hdr_ext,nucleus=out1.nucleus,center_freq_ppm=center_freq_ppm)
     return outnii
     
 if __name__=='__main__':
